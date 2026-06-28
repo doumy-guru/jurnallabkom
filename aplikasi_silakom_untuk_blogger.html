@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SilaKom - Jurnal Lab Komputer</title>
+  
+  <!-- 1. Import Tailwind CSS untuk Styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 2. Import FontAwesome untuk Ikon -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- 3. Import React & Babel -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- 4. Import Firebase (Versi Compat untuk Browser) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-50">
+
+  <!-- Tempat React akan di-render -->
+  <div id="root"></div>
+
+  <!-- 5. KODE APLIKASI (React + Firebase) -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // --- PASTE FIREBASE CONFIG ANDA DI SINI ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyDfePsFQwgGqnZ5CCJ87iaaGEKwr0VYsJQ",
+      authDomain: "jurnallabkom.firebaseapp.com",
+      projectId: "jurnallabkom",
+      storageBucket: "jurnallabkom.firebasestorage.app",
+      messagingSenderId: "473470277683",
+      appId: "1:473470277683:web:1f57b8af9424a917802b46"
+    };
+
+    // Inisialisasi Firebase
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const db = firebase.firestore();
+
+    function App() {
+      const [role, setRole] = useState('laboran');
+      const [activeTab, setActiveTab] = useState('dashboard');
+      
+      const [bookings, setBookings] = useState([]);
+      const [journals, setJournals] = useState([]);
+
+      const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '' });
+      const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '' });
+
+      // Ambil data Real-time
+      useEffect(() => {
+        const unsubBookings = db.collection('bookings')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setBookings(data);
+          });
+
+        const unsubJournals = db.collection('journals')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setJournals(data);
+          });
+
+        return () => {
+          unsubBookings();
+          unsubJournals();
+        };
+      }, []);
+
+      const handleApprove = async (id) => {
+        try {
+          await db.collection('bookings').doc(id).update({ status: 'approved' });
+        } catch (error) {
+          console.error("Gagal menyetujui:", error);
+          alert("Gagal. Pastikan Rule Firestore sudah diatur ke 'true'.");
+        }
+      };
+
+      const handleReject = async (id) => {
+        try {
+          await db.collection('bookings').doc(id).update({ status: 'rejected' });
+        } catch (error) {
+          console.error("Gagal menolak:", error);
+        }
+      };
+
+      const submitBooking = async (e) => {
+        e.preventDefault();
+        try {
+          await db.collection('bookings').add({
+            ...newBooking,
+            teacher: 'Anda (Guru Demo)',
+            status: 'pending',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '' });
+          setActiveTab('dashboard');
+          alert("Pengajuan berhasil dikirim!");
+        } catch (error) {
+          console.error("Gagal submit:", error);
+          alert("Gagal mengirim. Error: " + error.message);
+        }
+      };
+
+      const submitJournal = async (e) => {
+        e.preventDefault();
+        const selectedBooking = bookings.find(b => b.id === newJournal.bookingId);
+        try {
+          await db.collection('journals').add({
+            ...newJournal,
+            date: new Date().toISOString().split('T')[0],
+            teacher: selectedBooking.teacher,
+            subject: selectedBooking.subject,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '' });
+          setActiveTab('laporan');
+          alert("Jurnal berhasil disimpan!");
+        } catch (error) {
+          console.error("Gagal submit jurnal:", error);
+          alert("Gagal menyimpan jurnal.");
+        }
+      };
+
+      const NavItem = ({ id, icon, label }) => (
+        <button
+          onClick={() => setActiveTab(id)}
+          className={`flex items-center space-x-3 px-4 py-3 w-full rounded-lg transition-colors text-left ${
+            activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50'
+          }`}
+        >
+          <i className={`fas fa-${icon} w-5 text-center`}></i>
+          <span className="font-medium">{label}</span>
+        </button>
+      );
+
+      return (
+        <div className="min-h-screen flex font-sans text-slate-800">
+          {/* Sidebar */}
+          <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex min-h-screen">
+            <div className="p-6 border-b border-slate-200 flex items-center space-x-3">
+              <div className="bg-blue-600 p-2 rounded-lg text-white">
+                <i className="fas fa-desktop text-xl"></i>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-800">SilaKom</h1>
+                <p className="text-xs text-slate-500">Sistem Lab Komputer</p>
+              </div>
+            </div>
+
+            <div className="flex-1 p-4 space-y-2">
+              <NavItem id="dashboard" icon="chart-line" label="Dashboard Jadwal" />
+              
+              {role === 'guru' && (
+                <React.Fragment>
+                  <NavItem id="pengajuan" icon="plus-circle" label="Ajukan Pemakaian" />
+                  <NavItem id="isi-jurnal" icon="file-alt" label="Isi Jurnal Lab" />
+                </React.Fragment>
+              )}
+
+              {role === 'laboran' && (
+                <React.Fragment>
+                  <NavItem id="persetujuan" icon="check-circle" label="Persetujuan" />
+                  <NavItem id="laporan" icon="list-alt" label="Laporan Jurnal" />
+                </React.Fragment>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200">
+              <div className="flex items-center space-x-3 p-3 bg-slate-100 rounded-lg">
+                <div className="bg-slate-300 p-2 rounded-full flex items-center justify-center w-8 h-8">
+                  <i className="fas fa-user text-slate-600"></i>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">{role === 'laboran' ? 'Admin Laboran' : 'Bpk/Ibu Guru'}</p>
+                  <p className="text-xs text-slate-500 capitalize">{role}</p>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col h-screen overflow-hidden">
+            <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-slate-800 capitalize">
+                {activeTab.replace('-', ' ')}
+              </h2>
+              
+              <div className="flex items-center space-x-2 bg-blue-50 p-1 rounded-lg border border-blue-100">
+                <span className="text-xs font-medium text-blue-800 px-2 hidden sm:inline">Simulasi Login:</span>
+                <button 
+                  onClick={() => { setRole('guru'); setActiveTab('dashboard'); }}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${role === 'guru' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}
+                >
+                  Guru
+                </button>
+                <button 
+                  onClick={() => { setRole('laboran'); setActiveTab('dashboard'); }}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${role === 'laboran' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}
+                >
+                  Laboran
+                </button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-auto p-4 sm:p-6 bg-slate-50">
+              
+              {/* VIEW: DASHBOARD */}
+              {activeTab === 'dashboard' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                      <div className="bg-green-100 p-3 rounded-lg text-green-600"><i className="fas fa-check-circle text-2xl"></i></div>
+                      <div>
+                        <p className="text-sm text-slate-500 font-medium">Total Disetujui</p>
+                        <p className="text-2xl font-bold">{bookings.filter(b => b.status === 'approved').length}</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                      <div className="bg-amber-100 p-3 rounded-lg text-amber-600"><i className="fas fa-clock text-2xl"></i></div>
+                      <div>
+                        <p className="text-sm text-slate-500 font-medium">Menunggu Persetujuan</p>
+                        <p className="text-2xl font-bold">{bookings.filter(b => b.status === 'pending').length}</p>
+                      </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
+                      <div className="bg-blue-100 p-3 rounded-lg text-blue-600"><i className="fas fa-file-alt text-2xl"></i></div>
+                      <div>
+                        <p className="text-sm text-slate-500 font-medium">Total Jurnal</p>
+                        <p className="text-2xl font-bold">{journals.length}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-slate-200 bg-slate-50">
+                      <h3 className="font-semibold text-lg flex items-center"><i className="fas fa-calendar-alt mr-2"></i> Jadwal Laboratorium (Disetujui)</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse min-w-[600px]">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                            <th className="p-4 font-medium">Tanggal</th>
+                            <th className="p-4 font-medium">Waktu</th>
+                            <th className="p-4 font-medium">Guru</th>
+                            <th className="p-4 font-medium">Mata Pelajaran</th>
+                            <th className="p-4 font-medium">Kelas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bookings.filter(b => b.status === 'approved').map(booking => (
+                            <tr key={booking.id} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="p-4 font-medium">{booking.date}</td>
+                              <td className="p-4 text-blue-600 font-medium">{booking.timeStart} - {booking.timeEnd}</td>
+                              <td className="p-4">{booking.teacher}</td>
+                              <td className="p-4">{booking.subject}</td>
+                              <td className="p-4">
+                                <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md text-xs font-semibold">{booking.class}</span>
+                              </td>
+                            </tr>
+                          ))}
+                          {bookings.filter(b => b.status === 'approved').length === 0 && (
+                            <tr><td colSpan="5" className="p-8 text-center text-slate-500">Tidak ada jadwal disetujui.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW: PENGAJUAN */}
+              {activeTab === 'pengajuan' && role === 'guru' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-blue-50">
+                    <h3 className="font-semibold text-lg text-blue-800">Form Pengajuan Pemakaian Lab</h3>
+                  </div>
+                  <form onSubmit={submitBooking} className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
+                        <input type="date" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" 
+                               value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} />
+                      </div>
+                      <div className="flex space-x-2">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Mulai</label>
+                          <input type="time" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                                 value={newBooking.timeStart} onChange={e => setNewBooking({...newBooking, timeStart: e.target.value})} />
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-slate-700 mb-1">Selesai</label>
+                          <input type="time" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                                 value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Mata Pelajaran / Kegiatan</label>
+                      <input type="text" required placeholder="Contoh: Pemrograman Web" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                             value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Kelas</label>
+                        <input type="text" required placeholder="Contoh: XII RPL 1" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                               value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah PC</label>
+                        <input type="number" required placeholder="Contoh: 36" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                               value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} />
+                      </div>
+                    </div>
+                    <div className="pt-4">
+                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors">
+                        Kirim Pengajuan
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* VIEW: PERSETUJUAN */}
+              {activeTab === 'persetujuan' && role === 'laboran' && (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-slate-50">
+                    <h3 className="font-semibold text-lg flex items-center">Manajemen Pengajuan</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
+                          <th className="p-4 font-medium">Tgl & Waktu</th>
+                          <th className="p-4 font-medium">Guru / Mapel</th>
+                          <th className="p-4 font-medium">Status</th>
+                          <th className="p-4 font-medium text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bookings.map(booking => (
+                          <tr key={booking.id} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="p-4">
+                              <div className="font-medium text-slate-800">{booking.date}</div>
+                              <div className="text-xs text-slate-500">{booking.timeStart} - {booking.timeEnd}</div>
+                            </td>
+                            <td className="p-4">
+                              <div className="font-medium text-slate-800">{booking.teacher}</div>
+                              <div className="text-xs text-slate-500">{booking.subject}</div>
+                            </td>
+                            <td className="p-4">
+                              {booking.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-semibold">Menunggu</span>}
+                              {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">Disetujui</span>}
+                              {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold">Ditolak</span>}
+                            </td>
+                            <td className="p-4 text-right">
+                              {booking.status === 'pending' && (
+                                <div className="flex justify-end space-x-2">
+                                  <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-md">
+                                    <i className="fas fa-check"></i>
+                                  </button>
+                                  <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-md">
+                                    <i className="fas fa-times"></i>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {bookings.length === 0 && (
+                          <tr><td colSpan="4" className="p-8 text-center text-slate-500">Belum ada data pengajuan.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* VIEW: ISI JURNAL */}
+              {activeTab === 'isi-jurnal' && role === 'guru' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-green-50">
+                    <h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3>
+                  </div>
+                  <form onSubmit={submitJournal} className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Jadwal Anda</label>
+                      <select required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-white"
+                              value={newJournal.bookingId} onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}>
+                        <option value="">-- Pilih Jadwal yang Selesai --</option>
+                        {bookings.filter(b => b.status === 'approved').map(b => (
+                          <option key={b.id} value={b.id}>{b.date} | {b.subject}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Siswa Hadir</label>
+                      <input type="number" required placeholder="Contoh: 35" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none"
+                             value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Kendala Alat (Opsional)</label>
+                      <textarea rows="2" placeholder="Contoh: PC No 14 macet" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none"
+                             value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Ringkasan Kegiatan</label>
+                      <textarea rows="3" required placeholder="Materi yang diajarkan..." className="w-full p-2.5 border border-slate-300 rounded-lg outline-none"
+                             value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea>
+                    </div>
+                    <div className="pt-4">
+                      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 rounded-lg transition-colors">
+                        Simpan Jurnal
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {/* VIEW: LAPORAN JURNAL */}
+              {activeTab === 'laporan' && (
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-lg text-slate-800">Riwayat Jurnal Pemakaian</h3>
+                  <div className="grid grid-cols-1 gap-4">
+                    {journals.map(journal => (
+                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h4 className="font-bold text-lg text-blue-700">{journal.subject}</h4>
+                            <p className="text-sm text-slate-500 flex items-center mt-1">
+                              <i className="fas fa-user mr-1.5"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5"></i> {journal.date}
+                            </p>
+                          </div>
+                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-medium">
+                            {journal.attendees} Hadir
+                          </span>
+                        </div>
+                        
+                        <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 mb-3 border border-slate-100">
+                          <span className="font-semibold block mb-1">Ringkasan Kegiatan:</span>
+                          {journal.summary}
+                        </div>
+
+                        {journal.issues && (
+                          <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-100 flex items-start">
+                            <i className="fas fa-times-circle mr-2 mt-0.5 flex-shrink-0"></i>
+                            <div>
+                              <span className="font-semibold block">Laporan Kendala:</span>
+                              {journal.issues}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {journals.length === 0 && (
+                      <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
+                        Belum ada jurnal yang disubmit.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
