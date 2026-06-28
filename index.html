@@ -58,8 +58,11 @@
 
       const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
       
-      // FIX: Menambahkan field materi dan devices
       const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
+
+      // Ambil tanggal hari ini berdasarkan zona waktu lokal untuk default garis waktu
+      const todayStrLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const [timelineDate, setTimelineDate] = useState(todayStrLocal);
 
       useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
@@ -160,7 +163,6 @@
         }
       };
 
-      // Handle centang checkbox perangkat
       const handleDeviceChange = (device) => {
         setNewJournal(prev => {
           const updated = prev.devices.includes(device)
@@ -196,9 +198,8 @@
         return h * 60 + m;
       };
       
-      // Ambil tanggal hari ini berdasarkan zona waktu lokal
-      const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
-      const todaysBookings = bookings.filter(b => b.date === todayStr && b.status !== 'rejected');
+      // Filter booking berdasarkan tanggal yang dipilih di Garis Waktu
+      const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected');
 
       const NavItem = ({ id, icon, label }) => (
         <button
@@ -212,12 +213,10 @@
         </button>
       );
 
-      // --- TAMPILAN LOADING ---
       if (loadingAuth) {
         return <div className="min-h-screen flex items-center justify-center font-sans text-slate-500">Memuat Jurnal Labkom...</div>;
       }
 
-      // --- TAMPILAN HALAMAN LOGIN ---
       if (!user) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
@@ -243,7 +242,6 @@
         );
       }
 
-      // --- TAMPILAN APLIKASI UTAMA ---
       return (
         <div className="min-h-screen flex font-sans text-slate-800">
           <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex min-h-screen">
@@ -339,29 +337,49 @@
                     </div>
                   </div>
 
-                  {/* FITUR BARU: TIMELINE PEMAKAIAN HARI INI */}
+                  {/* FITUR BARU: TIMELINE PEMAKAIAN FLEKSIBEL (PILIH TANGGAL & SKALA 30 MNT) */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
-                    <div className="p-5 border-b border-slate-200 bg-slate-50">
+                    <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
                       <h3 className="font-semibold text-lg flex items-center">
-                        <i className="fas fa-stream mr-2 text-blue-500"></i> Blok Waktu Hari Ini ({todayStr})
+                        <i className="fas fa-stream mr-2 text-blue-500"></i> Garis Waktu Pemakaian
                       </h3>
+                      <div className="flex items-center space-x-2">
+                        <label className="text-sm text-slate-500 font-medium">Pilih Tanggal:</label>
+                        <input 
+                          type="date" 
+                          className="p-1.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
+                          value={timelineDate}
+                          onChange={(e) => setTimelineDate(e.target.value)}
+                        />
+                      </div>
                     </div>
+                    
                     <div className="p-5 overflow-x-auto">
-                      <div className="min-w-[600px] relative mt-2 mb-4">
+                      <div className="min-w-[800px] relative mt-2 mb-4">
                         {/* Box Timeline 07:30 - 18:00 (Total 630 menit) */}
-                        <div className="relative w-full h-20 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shadow-inner">
-                          {/* Garis Penanda Jam */}
-                          {[8, 10, 12, 14, 16, 18].map(h => {
-                            const left = ((h * 60 - 450) / 630) * 100;
+                        <div className="relative w-full h-24 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shadow-inner">
+                          
+                          {/* Garis Penanda per 30 Menit */}
+                          {Array.from({ length: 22 }, (_, i) => 450 + (i * 30)).map(m => {
+                            if (m > 1080) return null; // Maksimal 18:00
+                            const left = ((m - 450) / 630) * 100;
+                            const isHour = m % 60 === 0;
+                            const h = Math.floor(m / 60);
+                            const min = isHour ? '00' : '30';
+                            
+                            if (m === 450) return null; // 07:30 disembunyikan teksnya karena tertutup ujung kiri
+
                             return (
-                              <div key={h} className="absolute top-0 bottom-0 border-l border-slate-300 z-0" style={{ left: `${Math.max(0, left)}%` }}>
-                                <span className="text-xs text-slate-400 font-bold ml-1.5 mt-1 block">{h}:00</span>
+                              <div key={m} className={`absolute top-0 bottom-0 border-l ${isHour ? 'border-slate-300' : 'border-slate-300 border-dashed opacity-50'} z-0`} style={{ left: `${Math.max(0, left)}%` }}>
+                                <span className={`text-[10px] ${isHour ? 'text-slate-500 font-bold' : 'text-slate-400 font-medium'} ml-1 mt-1 block`}>
+                                  {h}:{min}
+                                </span>
                               </div>
                             );
                           })}
 
-                          {/* Data Booking Hari Ini */}
-                          {todaysBookings.map(b => {
+                          {/* Data Booking Berdasarkan Tanggal Terpilih */}
+                          {timelineBookings.map(b => {
                             const startMins = timeToMins(b.timeStart);
                             const endMins = timeToMins(b.timeEnd);
                             const clampedStart = Math.max(450, startMins);
@@ -376,7 +394,7 @@
                             return (
                               <div
                                 key={b.id}
-                                className={`absolute top-2 bottom-2 rounded opacity-90 ${bgColor} border border-white/20 z-10 flex flex-col justify-center px-2 overflow-hidden shadow-sm hover:opacity-100 transition-opacity cursor-default`}
+                                className={`absolute top-6 bottom-2 rounded opacity-90 ${bgColor} border border-white/20 z-10 flex flex-col justify-center px-2 overflow-hidden shadow-sm hover:opacity-100 transition-opacity cursor-default`}
                                 style={{ left: `${left}%`, width: `${width}%` }}
                                 title={`${b.subject} (${b.timeStart} - ${b.timeEnd}) [${isApproved ? 'Disetujui' : 'Menunggu'}]`}
                               >
