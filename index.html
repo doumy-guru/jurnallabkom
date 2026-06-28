@@ -24,7 +24,7 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
-    // --- 1. PASTE FIREBASE CONFIG ANDA DI SINI ---
+    // --- 1. FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyDfePsFQwgGqnZ5CCJ87iaaGEKwr0VYsJQ",
       authDomain: "jurnallabkom.firebaseapp.com",
@@ -34,7 +34,6 @@
       appId: "1:473470277683:web:1f57b8af9424a917802b46"
     };
 
-    // Inisialisasi Firebase
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
@@ -42,16 +41,13 @@
     const auth = firebase.auth();
     const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    // --- 2. PENTING: DAFTAR EMAIL LABORAN ---
-    // Ganti dengan email Google Anda. Email yang ada di daftar ini akan otomatis menjadi "Laboran".
-    // Selain email ini, siapapun yang login akan otomatis menjadi "Guru".
+    // --- 2. EMAIL LABORAN ---
     const ADMIN_EMAILS = [
       'iwandoumy18@guru.sma.belajar.id', 
       'doumy@sman1bandaaceh.sch.id'
     ];
 
     function App() {
-      // State Auth
       const [user, setUser] = useState(null);
       const [role, setRole] = useState('guru');
       const [loadingAuth, setLoadingAuth] = useState(true);
@@ -60,15 +56,15 @@
       const [bookings, setBookings] = useState([]);
       const [journals, setJournals] = useState([]);
 
-      const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '' });
-      const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '' });
+      const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
+      
+      // FIX: Menambahkan field materi dan devices
+      const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
 
-      // Cek Status Login (Auth State Listener)
       useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           if (currentUser) {
             setUser(currentUser);
-            // Penentuan Role (Laboran atau Guru)
             if (ADMIN_EMAILS.includes(currentUser.email)) {
               setRole('laboran');
             } else {
@@ -79,11 +75,9 @@
           }
           setLoadingAuth(false);
         });
-
         return () => unsubscribeAuth();
       }, []);
 
-      // Ambil data Real-time (Hanya berjalan jika user sudah login)
       useEffect(() => {
         if (!user) return;
 
@@ -107,16 +101,10 @@
         };
       }, [user]);
 
-      // FUNGSI LOGIN & LOGOUT (DIPERBARUI UNTUK ANALISA ERROR)
       const loginGoogle = () => {
         auth.signInWithPopup(googleProvider).catch((error) => {
-          console.error("Detail Error Login:", error);
           if (error.code === 'auth/unauthorized-domain') {
-            alert("GAGAL LOGIN (Domain Tidak Diizinkan):\n\nDomain web ini belum didaftarkan di Firebase. Silakan tambahkan domain Anda ke menu 'Authorized domains' di Firebase Authentication.");
-          } else if (error.code === 'auth/popup-closed-by-user') {
-            alert("Login dibatalkan. Anda menutup jendela pop-up sebelum proses selesai.");
-          } else if (error.code === 'auth/popup-blocked') {
-            alert("Pop-up login diblokir oleh browser. Mohon izinkan pop-up untuk situs ini (biasanya ada ikon peringatan di address bar).");
+            alert("GAGAL LOGIN:\nDomain web ini belum didaftarkan di Firebase Authentication.");
           } else {
             alert(`Gagal Login (${error.code}):\n${error.message}`);
           }
@@ -127,6 +115,7 @@
         auth.signOut();
       };
 
+      // --- LOGIKA AKSI LABORAN ---
       const handleApprove = async (id) => {
         try {
           await db.collection('bookings').doc(id).update({ status: 'approved' });
@@ -143,22 +132,42 @@
         }
       };
 
+      const handlePending = async (id) => {
+        try {
+          await db.collection('bookings').doc(id).update({ status: 'pending' });
+        } catch (error) {
+          alert("Gagal mengembalikan status.");
+        }
+      };
+
+      // --- LOGIKA SUBMIT PENGGUNA ---
       const submitBooking = async (e) => {
         e.preventDefault();
         try {
           await db.collection('bookings').add({
             ...newBooking,
-            teacher: user.displayName || 'Guru', // Mengambil nama asli dari akun Google
+            teacher: user.displayName || 'Guru',
             teacherEmail: user.email,
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '' });
+          
+          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
           setActiveTab('dashboard');
-          alert("Pengajuan berhasil dikirim!");
+          alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
         } catch (error) {
           alert("Gagal mengirim pengajuan.");
         }
+      };
+
+      // Handle centang checkbox perangkat
+      const handleDeviceChange = (device) => {
+        setNewJournal(prev => {
+          const updated = prev.devices.includes(device)
+            ? prev.devices.filter(d => d !== device)
+            : [...prev.devices, device];
+          return { ...prev, devices: updated };
+        });
       };
 
       const submitJournal = async (e) => {
@@ -172,13 +181,24 @@
             subject: selectedBooking.subject,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '' });
+          setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
           setActiveTab('laporan');
           alert("Jurnal berhasil disimpan!");
         } catch (error) {
           alert("Gagal menyimpan jurnal.");
         }
       };
+
+      // --- HELPER UNTUK TIMELINE DASHBOARD ---
+      const timeToMins = (t) => {
+        if (!t) return 0;
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+      };
+      
+      // Ambil tanggal hari ini berdasarkan zona waktu lokal
+      const todayStr = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const todaysBookings = bookings.filter(b => b.date === todayStr && b.status !== 'rejected');
 
       const NavItem = ({ id, icon, label }) => (
         <button
@@ -197,7 +217,7 @@
         return <div className="min-h-screen flex items-center justify-center font-sans text-slate-500">Memuat Jurnal Labkom...</div>;
       }
 
-      // --- TAMPILAN HALAMAN LOGIN (JIKA BELUM MASUK) ---
+      // --- TAMPILAN HALAMAN LOGIN ---
       if (!user) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
@@ -223,10 +243,9 @@
         );
       }
 
-      // --- TAMPILAN APLIKASI UTAMA (JIKA SUDAH LOGIN) ---
+      // --- TAMPILAN APLIKASI UTAMA ---
       return (
         <div className="min-h-screen flex font-sans text-slate-800">
-          {/* Sidebar */}
           <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex min-h-screen">
             <div className="p-6 border-b border-slate-200 flex items-center space-x-3">
               <img 
@@ -270,7 +289,6 @@
             </div>
           </aside>
 
-          {/* Main Content */}
           <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-slate-800 capitalize">
@@ -321,9 +339,69 @@
                     </div>
                   </div>
 
+                  {/* FITUR BARU: TIMELINE PEMAKAIAN HARI INI */}
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
+                    <div className="p-5 border-b border-slate-200 bg-slate-50">
+                      <h3 className="font-semibold text-lg flex items-center">
+                        <i className="fas fa-stream mr-2 text-blue-500"></i> Blok Waktu Hari Ini ({todayStr})
+                      </h3>
+                    </div>
+                    <div className="p-5 overflow-x-auto">
+                      <div className="min-w-[600px] relative mt-2 mb-4">
+                        {/* Box Timeline 07:30 - 18:00 (Total 630 menit) */}
+                        <div className="relative w-full h-20 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shadow-inner">
+                          {/* Garis Penanda Jam */}
+                          {[8, 10, 12, 14, 16, 18].map(h => {
+                            const left = ((h * 60 - 450) / 630) * 100;
+                            return (
+                              <div key={h} className="absolute top-0 bottom-0 border-l border-slate-300 z-0" style={{ left: `${Math.max(0, left)}%` }}>
+                                <span className="text-xs text-slate-400 font-bold ml-1.5 mt-1 block">{h}:00</span>
+                              </div>
+                            );
+                          })}
+
+                          {/* Data Booking Hari Ini */}
+                          {todaysBookings.map(b => {
+                            const startMins = timeToMins(b.timeStart);
+                            const endMins = timeToMins(b.timeEnd);
+                            const clampedStart = Math.max(450, startMins);
+                            const clampedEnd = Math.min(1080, endMins);
+                            if (clampedStart >= clampedEnd) return null;
+
+                            const left = ((clampedStart - 450) / 630) * 100;
+                            const width = ((clampedEnd - clampedStart) / 630) * 100;
+                            const isApproved = b.status === 'approved';
+                            const bgColor = isApproved ? 'bg-green-500' : 'bg-amber-400';
+
+                            return (
+                              <div
+                                key={b.id}
+                                className={`absolute top-2 bottom-2 rounded opacity-90 ${bgColor} border border-white/20 z-10 flex flex-col justify-center px-2 overflow-hidden shadow-sm hover:opacity-100 transition-opacity cursor-default`}
+                                style={{ left: `${left}%`, width: `${width}%` }}
+                                title={`${b.subject} (${b.timeStart} - ${b.timeEnd}) [${isApproved ? 'Disetujui' : 'Menunggu'}]`}
+                              >
+                                <span className="text-[11px] text-white font-bold truncate leading-tight drop-shadow-sm">{b.class}</span>
+                                <span className="text-[9px] text-white/90 truncate leading-tight mt-0.5 hidden sm:block">{b.teacher}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between text-xs font-bold text-slate-500 mt-2 px-1">
+                          <span>07:30</span>
+                          <div className="flex space-x-4">
+                            <span className="flex items-center"><span className="w-3 h-3 bg-amber-400 rounded-sm mr-1.5 inline-block"></span>Pending</span>
+                            <span className="flex items-center"><span className="w-3 h-3 bg-green-500 rounded-sm mr-1.5 inline-block"></span>Disetujui</span>
+                          </div>
+                          <span>18:00</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tabel Jadwal */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="p-5 border-b border-slate-200 bg-slate-50">
-                      <h3 className="font-semibold text-lg flex items-center"><i className="fas fa-calendar-alt mr-2 text-slate-500"></i> Jadwal Laboratorium (Disetujui)</h3>
+                      <h3 className="font-semibold text-lg flex items-center"><i className="fas fa-calendar-alt mr-2 text-slate-500"></i> Daftar Jadwal Disetujui</h3>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse min-w-[600px]">
@@ -404,6 +482,13 @@
                                value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} />
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">No. WhatsApp Anda (Untuk Notif Persetujuan)</label>
+                      <input type="text" placeholder="Opsional, Contoh: 081234567890" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                             value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} />
+                      <p className="text-xs text-slate-500 mt-1">*Sistem akan mengirim konfirmasi ke nomor ini (saat fitur notifikasi aktif).</p>
+                    </div>
+
                     <div className="pt-4">
                       <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
                         Kirim Pengajuan
@@ -445,17 +530,26 @@
                               {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">Disetujui</span>}
                               {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold">Ditolak</span>}
                             </td>
+                            
+                            {/* FITUR BARU: TOMBOL EDIT STATUS UNTUK LABORAN */}
                             <td className="p-4 text-right">
-                              {booking.status === 'pending' && (
-                                <div className="flex justify-end space-x-2">
-                                  <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg shadow-sm">
+                              <div className="flex justify-end space-x-2">
+                                {booking.status !== 'approved' && (
+                                  <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg shadow-sm transition-colors" title="Ubah ke Disetujui">
                                     <i className="fas fa-check"></i>
                                   </button>
-                                  <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg shadow-sm">
+                                )}
+                                {booking.status !== 'rejected' && (
+                                  <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg shadow-sm transition-colors" title="Ubah ke Ditolak">
                                     <i className="fas fa-times"></i>
                                   </button>
-                                </div>
-                              )}
+                                )}
+                                {booking.status !== 'pending' && (
+                                  <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-lg shadow-sm transition-colors" title="Batalkan Keputusan (Kembali ke Menunggu)">
+                                    <i className="fas fa-undo"></i>
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -480,28 +574,50 @@
                       <select required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
                               value={newJournal.bookingId} onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}>
                         <option value="">-- Pilih Jadwal yang Selesai --</option>
-                        {/* Memfilter jadwal disetujui yang merupakan milik guru yang sedang login */}
                         {bookings.filter(b => b.status === 'approved' && b.teacherEmail === user.email).map(b => (
                           <option key={b.id} value={b.id}>{b.date} | {b.subject}</option>
                         ))}
                       </select>
                       <p className="text-xs text-slate-500 mt-1">*Hanya jadwal Anda yang telah disetujui laboran yang akan muncul di sini.</p>
                     </div>
+
+                    {/* FITUR BARU: FIELD MATERI */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Materi / Tema Pembelajaran</label>
+                      <input type="text" required placeholder="Contoh: Pengenalan HTML Dasar" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
+                             value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} />
+                    </div>
+
+                    {/* FITUR BARU: CHECKLIST PERANGKAT */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Perangkat Lab yang Digunakan</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        {['PC', 'Proyektor', 'Smartboard', 'Laptop'].map(dev => (
+                          <label key={dev} className="flex items-center space-x-2 cursor-pointer">
+                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
+                                   checked={newJournal.devices.includes(dev)} onChange={() => handleDeviceChange(dev)} />
+                            <span className="text-sm font-medium text-slate-700">{dev}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Siswa Hadir</label>
                       <input type="number" required placeholder="Contoh: 35" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
                              value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Kendala Alat (Opsional)</label>
-                      <textarea rows="2" placeholder="Contoh: PC No 14 macet" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                             value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Ringkasan Kegiatan</label>
-                      <textarea rows="3" required placeholder="Materi yang diajarkan..." className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Ringkasan Kegiatan (Output/Hasil)</label>
+                      <textarea rows="3" required placeholder="Jelaskan secara singkat apa yang dilakukan siswa..." className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
                              value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Kendala Alat (Opsional)</label>
+                      <textarea rows="2" placeholder="Contoh: PC No 14 keyboardnya rusak" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
+                             value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea>
+                    </div>
+                    
                     <div className="pt-4">
                       <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
                         Simpan Jurnal
@@ -517,29 +633,47 @@
                   <h3 className="font-semibold text-lg text-slate-800">Riwayat Jurnal Pemakaian</h3>
                   <div className="grid grid-cols-1 gap-4">
                     {journals.map(journal => (
-                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-3">
+                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
+                        <div className="flex flex-col sm:flex-row justify-between items-start mb-4">
                           <div>
                             <h4 className="font-bold text-lg text-blue-700">{journal.subject}</h4>
                             <p className="text-sm text-slate-500 flex items-center mt-1">
-                              <i className="fas fa-user mr-1.5"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5"></i> {journal.date}
+                              <i className="fas fa-user mr-1.5 text-slate-400"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5 text-slate-400"></i> {journal.date}
                             </p>
                           </div>
-                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-medium">
-                            {journal.attendees} Hadir
+                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-bold mt-2 sm:mt-0 border border-slate-200 shadow-sm">
+                            {journal.attendees} Siswa Hadir
                           </span>
                         </div>
                         
-                        <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-700 mb-3 border border-slate-100">
-                          <span className="font-semibold block mb-1">Ringkasan Kegiatan:</span>
-                          {journal.summary}
+                        <div className="bg-slate-50 rounded-lg p-3.5 text-sm text-slate-700 mb-3 border border-slate-200">
+                          {/* FITUR BARU: Menampilkan Materi & Perangkat */}
+                          <div className="mb-2.5 flex items-start">
+                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Materi/Tema</span>
+                            <span className="font-medium text-slate-600">: {journal.materi || '-'}</span>
+                          </div>
+                          <div className="mb-2.5 flex items-start">
+                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Perangkat</span>
+                            <div className="flex-1">
+                              <span className="font-medium text-slate-600 mr-1">:</span>
+                              {journal.devices && journal.devices.length > 0 ? (
+                                journal.devices.map(d => (
+                                  <span key={d} className="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold mr-1 mb-1 border border-blue-200">{d}</span>
+                                ))
+                              ) : '-'}
+                            </div>
+                          </div>
+                          <div className="flex items-start">
+                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Ringkasan</span>
+                            <span className="font-medium text-slate-600">: {journal.summary}</span>
+                          </div>
                         </div>
 
                         {journal.issues && (
-                          <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-100 flex items-start">
-                            <i className="fas fa-times-circle mr-2 mt-0.5 flex-shrink-0"></i>
+                          <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-200 flex items-start">
+                            <i className="fas fa-exclamation-triangle mr-2 mt-0.5 flex-shrink-0 text-red-600"></i>
                             <div>
-                              <span className="font-semibold block">Laporan Kendala:</span>
+                              <span className="font-bold block mb-0.5 text-red-900">Kendala Laboratorium:</span>
                               {journal.issues}
                             </div>
                           </div>
