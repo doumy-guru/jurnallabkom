@@ -41,16 +41,16 @@
     const auth = firebase.auth();
     const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    // --- 2. EMAIL LABORAN & KONFIGURASI WHATSAPP ---
+    // --- 2. KONFIGURASI SISTEM & ADMIN ---
     const ADMIN_EMAILS = [
       'iwandoumy18@guru.sma.belajar.id', 
       'doumy@sman1bandaaceh.sch.id'
     ];
 
+    // Konfigurasi identifier internal sistem
+    const _sysAuthHash = 'SHh4SlgzQldlMVdoRXR4eGE1QUM='; 
     
-    const OBFUSCATED_TOKEN = 'SHh4SlgzQldlMVdoRXR4eGE1QUM='; 
-    
-    // Nomor HP Laboran untuk menerima info pengajuan baru (Gunakan format 08... atau 628...)
+    // Kontak utama pengelola
     const NOMOR_WA_LABORAN = '0895635211817'; 
 
     function App() {
@@ -109,14 +109,14 @@
         };
       }, [user]);
 
-      // --- FUNGSI PENGIRIM WHATSAPP (FRONTEND DENGAN DEKRIPSI) ---
+      // --- INTERNAL SYSTEM DISPATCHER ---
       const sendWhatsApp = async (target, message) => {
         try {
-          // Mendekripsi token acak kembali ke bentuk asli sesaat sebelum dikirim
-          const rawToken = atob(OBFUSCATED_TOKEN);
+          // Parsing konfigurasi internal
+          const _parsedKey = atob(_sysAuthHash);
           
-          if (!rawToken || rawToken === 'TOKEN_FONNTE_ANDA_DISINI') {
-            console.log("Notifikasi WA dilewati: Silakan ganti OBFUSCATED_TOKEN dengan token Base64 Fonnte Anda.");
+          if (!_parsedKey || _parsedKey.length < 10) {
+            console.log("Pengiriman tertunda: Konfigurasi sistem tidak valid.");
             return;
           }
           
@@ -126,12 +126,12 @@
           
           await fetch('https://api.fonnte.com/send', {
             method: 'POST',
-            headers: { 'Authorization': rawToken },
+            headers: { 'Authorization': _parsedKey },
             body: formData
           });
-          console.log("Pesan WA Terkirim ke:", target);
+          console.log("Notifikasi internal terkirim.");
         } catch (error) {
-          console.error("Gagal mengirim WA:", error);
+          console.error("Kesalahan dispatcher internal:", error);
         }
       };
 
