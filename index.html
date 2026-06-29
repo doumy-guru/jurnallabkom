@@ -41,11 +41,17 @@
     const auth = firebase.auth();
     const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    // --- 2. EMAIL LABORAN ---
+    // --- 2. EMAIL LABORAN & KONFIGURASI WHATSAPP ---
     const ADMIN_EMAILS = [
       'iwandoumy18@guru.sma.belajar.id', 
       'doumy@sman1bandaaceh.sch.id'
     ];
+
+    
+    const OBFUSCATED_TOKEN = 'SHh4SlgzQldlMVdoRXR4eGE1QUM='; 
+    
+    // Nomor HP Laboran untuk menerima info pengajuan baru (Gunakan format 08... atau 628...)
+    const NOMOR_WA_LABORAN = '0895635211817'; 
 
     function App() {
       const [user, setUser] = useState(null);
@@ -57,7 +63,6 @@
       const [journals, setJournals] = useState([]);
 
       const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
-      
       const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
 
       // Ambil tanggal hari ini berdasarkan zona waktu lokal untuk default garis waktu
@@ -104,6 +109,32 @@
         };
       }, [user]);
 
+      // --- FUNGSI PENGIRIM WHATSAPP (FRONTEND DENGAN DEKRIPSI) ---
+      const sendWhatsApp = async (target, message) => {
+        try {
+          // Mendekripsi token acak kembali ke bentuk asli sesaat sebelum dikirim
+          const rawToken = atob(OBFUSCATED_TOKEN);
+          
+          if (!rawToken || rawToken === 'TOKEN_FONNTE_ANDA_DISINI') {
+            console.log("Notifikasi WA dilewati: Silakan ganti OBFUSCATED_TOKEN dengan token Base64 Fonnte Anda.");
+            return;
+          }
+          
+          const formData = new FormData();
+          formData.append('target', target);
+          formData.append('message', message);
+          
+          await fetch('https://api.fonnte.com/send', {
+            method: 'POST',
+            headers: { 'Authorization': rawToken },
+            body: formData
+          });
+          console.log("Pesan WA Terkirim ke:", target);
+        } catch (error) {
+          console.error("Gagal mengirim WA:", error);
+        }
+      };
+
       const loginGoogle = () => {
         auth.signInWithPopup(googleProvider).catch((error) => {
           if (error.code === 'auth/unauthorized-domain') {
@@ -120,16 +151,30 @@
 
       // --- LOGIKA AKSI LABORAN ---
       const handleApprove = async (id) => {
+        const bookingToApprove = bookings.find(b => b.id === id);
         try {
           await db.collection('bookings').doc(id).update({ status: 'approved' });
+          
+          // Kirim WA Notifikasi Persetujuan ke Guru
+          if (bookingToApprove && bookingToApprove.teacherWa) {
+            const pesanGuru = `*Info Jurnal Labkom*\n\nPengajuan pemakaian Lab Anda untuk mapel *${bookingToApprove.subject}* pada tanggal *${bookingToApprove.date}* telah *DISETUJUI* oleh Laboran.`;
+            sendWhatsApp(bookingToApprove.teacherWa, pesanGuru);
+          }
         } catch (error) {
           alert("Gagal menyetujui jadwal.");
         }
       };
 
       const handleReject = async (id) => {
+        const bookingToReject = bookings.find(b => b.id === id);
         try {
           await db.collection('bookings').doc(id).update({ status: 'rejected' });
+          
+          // Kirim WA Notifikasi Penolakan ke Guru
+          if (bookingToReject && bookingToReject.teacherWa) {
+            const pesanGuru = `*Info Jurnal Labkom*\n\nMohon maaf, pengajuan Lab Anda untuk mapel *${bookingToReject.subject}* pada tanggal *${bookingToReject.date}* terpaksa *DITOLAK* oleh Laboran (kemungkinan jadwal bentrok).`;
+            sendWhatsApp(bookingToReject.teacherWa, pesanGuru);
+          }
         } catch (error) {
           alert("Gagal menolak jadwal.");
         }
@@ -155,6 +200,12 @@
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
           });
           
+          // Teks Pesan untuk dikirim ke WhatsApp Laboran
+          const pesanLaboran = `*Pengajuan Lab Baru!*\n\nGuru: ${user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\nWA Guru: ${newBooking.teacherWa}\n\nSilakan cek web Jurnal Labkom untuk menyetujui.`;
+          
+          // Mengeksekusi pengiriman WA
+          sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+
           setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
           setActiveTab('dashboard');
           alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
@@ -198,7 +249,6 @@
         return h * 60 + m;
       };
       
-      // Filter booking berdasarkan tanggal yang dipilih di Garis Waktu
       const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected');
 
       const NavItem = ({ id, icon, label }) => (
@@ -337,7 +387,7 @@
                     </div>
                   </div>
 
-                  {/* FITUR BARU: TIMELINE PEMAKAIAN FLEKSIBEL (PILIH TANGGAL & SKALA 30 MNT) */}
+                  {/* FITUR: TIMELINE PEMAKAIAN FLEKSIBEL (PILIH TANGGAL & SKALA 30 MNT) */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
                     <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
                       <h3 className="font-semibold text-lg flex items-center">
@@ -504,7 +554,7 @@
                       <label className="block text-sm font-medium text-slate-700 mb-1">No. WhatsApp Anda (Untuk Notif Persetujuan)</label>
                       <input type="text" placeholder="Opsional, Contoh: 081234567890" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
                              value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} />
-                      <p className="text-xs text-slate-500 mt-1">*Sistem akan mengirim konfirmasi ke nomor ini (saat fitur notifikasi aktif).</p>
+                      <p className="text-xs text-slate-500 mt-1">*Sistem akan mengirim konfirmasi ke nomor ini jika jadwal disetujui laboran.</p>
                     </div>
 
                     <div className="pt-4">
@@ -549,7 +599,7 @@
                               {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold">Ditolak</span>}
                             </td>
                             
-                            {/* FITUR BARU: TOMBOL EDIT STATUS UNTUK LABORAN */}
+                            {/* FITUR: TOMBOL EDIT STATUS UNTUK LABORAN */}
                             <td className="p-4 text-right">
                               <div className="flex justify-end space-x-2">
                                 {booking.status !== 'approved' && (
@@ -599,14 +649,14 @@
                       <p className="text-xs text-slate-500 mt-1">*Hanya jadwal Anda yang telah disetujui laboran yang akan muncul di sini.</p>
                     </div>
 
-                    {/* FITUR BARU: FIELD MATERI */}
+                    {/* FITUR: FIELD MATERI */}
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Materi / Tema Pembelajaran</label>
                       <input type="text" required placeholder="Contoh: Pengenalan HTML Dasar" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
                              value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} />
                     </div>
 
-                    {/* FITUR BARU: CHECKLIST PERANGKAT */}
+                    {/* FITUR: CHECKLIST PERANGKAT */}
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-2">Perangkat Lab yang Digunakan</label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
@@ -665,7 +715,7 @@
                         </div>
                         
                         <div className="bg-slate-50 rounded-lg p-3.5 text-sm text-slate-700 mb-3 border border-slate-200">
-                          {/* FITUR BARU: Menampilkan Materi & Perangkat */}
+                          {/* Tampilan Materi & Perangkat */}
                           <div className="mb-2.5 flex items-start">
                             <span className="font-bold text-slate-800 w-28 flex-shrink-0">Materi/Tema</span>
                             <span className="font-medium text-slate-600">: {journal.materi || '-'}</span>
