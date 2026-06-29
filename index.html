@@ -16,6 +16,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  
+  <!-- FITUR BARU: Import SheetJS untuk Export Excel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-50">
 
@@ -41,31 +44,35 @@
     const auth = firebase.auth();
     const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    // --- 2. KONFIGURASI SISTEM & ADMIN ---
+    // --- 2. KONFIGURASI SISTEM & ROLE ADMIN ---
     const ADMIN_EMAILS = [
-      'iwandoumy18@guru.sma.belajar.id', 
+      'iwandoumy18@guru.sma.belajar.id'
+    ];
+
+    // FITUR BARU: Email khusus untuk Kepala Lab (Pengawasan)
+    const KEPALA_LAB_EMAILS = [
       'doumy@sman1bandaaceh.sch.id'
     ];
 
-    // Konfigurasi identifier internal sistem
     const _sysAuthHash = 'SHh4SlgzQldlMVdoRXR4eGE1QUM='; 
-    
-    // Kontak utama pengelola
     const NOMOR_WA_LABORAN = '0895635211817'; 
 
     function App() {
       const [user, setUser] = useState(null);
-      const [role, setRole] = useState('guru');
+      const [role, setRole] = useState('guru'); // 'guru', 'laboran', 'kepala_lab'
       const [loadingAuth, setLoadingAuth] = useState(true);
 
       const [activeTab, setActiveTab] = useState('dashboard');
       const [bookings, setBookings] = useState([]);
       const [journals, setJournals] = useState([]);
+      
+      // FITUR BARU: State Inventaris
+      const [inventory, setInventory] = useState([]);
 
       const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
       const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
+      const [newItem, setNewItem] = useState({ kode: '', nama: '', kategori: 'PC', kondisi: 'Baik', catatan: '' });
 
-      // Ambil tanggal hari ini berdasarkan zona waktu lokal untuk default garis waktu
       const todayStrLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
       const [timelineDate, setTimelineDate] = useState(todayStrLocal);
 
@@ -73,8 +80,11 @@
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           if (currentUser) {
             setUser(currentUser);
+            // Penentuan 3 Role
             if (ADMIN_EMAILS.includes(currentUser.email)) {
               setRole('laboran');
+            } else if (KEPALA_LAB_EMAILS.includes(currentUser.email)) {
+              setRole('kepala_lab');
             } else {
               setRole('guru');
             }
@@ -92,200 +102,159 @@
         const unsubBookings = db.collection('bookings')
           .orderBy('createdAt', 'desc')
           .onSnapshot((snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setBookings(data);
-          }, (error) => { console.error(error); alert("Gagal mengambil data jadwal."); });
+            setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          });
 
         const unsubJournals = db.collection('journals')
           .orderBy('createdAt', 'desc')
           .onSnapshot((snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setJournals(data);
+            setJournals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          });
+          
+        // Fetch Inventaris
+        const unsubInventory = db.collection('inventory')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot((snapshot) => {
+            setInventory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
           });
 
         return () => {
           unsubBookings();
           unsubJournals();
+          unsubInventory();
         };
       }, [user]);
 
-      // --- INTERNAL SYSTEM DISPATCHER ---
       const sendWhatsApp = async (target, message) => {
         try {
-          // Parsing konfigurasi internal
           const _parsedKey = atob(_sysAuthHash);
-          
-          if (!_parsedKey || _parsedKey.length < 10) {
-            console.log("Pengiriman tertunda: Konfigurasi sistem tidak valid.");
-            return;
-          }
-          
+          if (!_parsedKey || _parsedKey.length < 10) return;
           const formData = new FormData();
           formData.append('target', target);
           formData.append('message', message);
-          
-          await fetch('https://api.fonnte.com/send', {
-            method: 'POST',
-            headers: { 'Authorization': _parsedKey },
-            body: formData
-          });
-          console.log("Notifikasi internal terkirim.");
+          await fetch('https://api.fonnte.com/send', { method: 'POST', headers: { 'Authorization': _parsedKey }, body: formData });
         } catch (error) {
-          console.error("Kesalahan dispatcher internal:", error);
+          console.error(error);
         }
       };
 
-      const loginGoogle = () => {
-        auth.signInWithPopup(googleProvider).catch((error) => {
-          if (error.code === 'auth/unauthorized-domain') {
-            alert("GAGAL LOGIN:\nDomain web ini belum didaftarkan di Firebase Authentication.");
-          } else {
-            alert(`Gagal Login (${error.code}):\n${error.message}`);
-          }
-        });
-      };
+      const loginGoogle = () => { auth.signInWithPopup(googleProvider).catch((e) => alert(e.message)); };
+      const logout = () => { auth.signOut(); };
 
-      const logout = () => {
-        auth.signOut();
-      };
-
-      // --- LOGIKA AKSI LABORAN ---
+      // --- AKSI LABORAN ---
       const handleApprove = async (id) => {
-        const bookingToApprove = bookings.find(b => b.id === id);
-        try {
-          await db.collection('bookings').doc(id).update({ status: 'approved' });
-          
-          // Kirim WA Notifikasi Persetujuan ke Guru
-          if (bookingToApprove && bookingToApprove.teacherWa) {
-            const pesanGuru = `*Info Jurnal Labkom*\n\nPengajuan pemakaian Lab Anda untuk mapel *${bookingToApprove.subject}* pada tanggal *${bookingToApprove.date}* telah *DISETUJUI* oleh Laboran.`;
-            sendWhatsApp(bookingToApprove.teacherWa, pesanGuru);
-          }
-        } catch (error) {
-          alert("Gagal menyetujui jadwal.");
-        }
+        if(role === 'kepala_lab') return; // Proteksi Role
+        const b = bookings.find(x => x.id === id);
+        await db.collection('bookings').doc(id).update({ status: 'approved' });
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
       };
 
       const handleReject = async (id) => {
-        const bookingToReject = bookings.find(b => b.id === id);
-        try {
-          await db.collection('bookings').doc(id).update({ status: 'rejected' });
-          
-          // Kirim WA Notifikasi Penolakan ke Guru
-          if (bookingToReject && bookingToReject.teacherWa) {
-            const pesanGuru = `*Info Jurnal Labkom*\n\nMohon maaf, pengajuan Lab Anda untuk mapel *${bookingToReject.subject}* pada tanggal *${bookingToReject.date}* terpaksa *DITOLAK* oleh Laboran (kemungkinan jadwal bentrok).`;
-            sendWhatsApp(bookingToReject.teacherWa, pesanGuru);
-          }
-        } catch (error) {
-          alert("Gagal menolak jadwal.");
-        }
+        if(role === 'kepala_lab') return;
+        const b = bookings.find(x => x.id === id);
+        await db.collection('bookings').doc(id).update({ status: 'rejected' });
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
       };
 
       const handlePending = async (id) => {
-        try {
-          await db.collection('bookings').doc(id).update({ status: 'pending' });
-        } catch (error) {
-          alert("Gagal mengembalikan status.");
-        }
+        if(role === 'kepala_lab') return;
+        await db.collection('bookings').doc(id).update({ status: 'pending' });
       };
 
-      // --- LOGIKA SUBMIT PENGGUNA ---
+      // --- AKSI GURU ---
       const submitBooking = async (e) => {
         e.preventDefault();
-        try {
-          await db.collection('bookings').add({
-            ...newBooking,
-            teacher: user.displayName || 'Guru',
-            teacherEmail: user.email,
-            status: 'pending',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          
-          // Teks Pesan untuk dikirim ke WhatsApp Laboran
-          const pesanLaboran = `*Pengajuan Lab Baru!*\n\nGuru: ${user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\nWA Guru: ${newBooking.teacherWa}\n\nSilakan cek web Jurnal Labkom untuk menyetujui.`;
-          
-          // Mengeksekusi pengiriman WA
-          sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
-
-          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
-          setActiveTab('dashboard');
-          alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
-        } catch (error) {
-          alert("Gagal mengirim pengajuan.");
-        }
+        await db.collection('bookings').add({ ...newBooking, teacher: user.displayName || 'Guru', teacherEmail: user.email, status: 'pending', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        sendWhatsApp(NOMOR_WA_LABORAN, `*Pengajuan Baru!*\nGuru: ${user.displayName}\nMapel: ${newBooking.subject}\nTgl: ${newBooking.date}\nWaktu: ${newBooking.timeStart}-${newBooking.timeEnd}\nCek Web untuk ACC.`);
+        setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '' });
+        setActiveTab('dashboard');
+        alert("Pengajuan dikirim!");
       };
 
       const handleDeviceChange = (device) => {
-        setNewJournal(prev => {
-          const updated = prev.devices.includes(device)
-            ? prev.devices.filter(d => d !== device)
-            : [...prev.devices, device];
-          return { ...prev, devices: updated };
-        });
+        setNewJournal(prev => ({ ...prev, devices: prev.devices.includes(device) ? prev.devices.filter(d => d !== device) : [...prev.devices, device] }));
       };
 
       const submitJournal = async (e) => {
         e.preventDefault();
-        const selectedBooking = bookings.find(b => b.id === newJournal.bookingId);
-        try {
-          await db.collection('journals').add({
-            ...newJournal,
-            date: new Date().toISOString().split('T')[0],
-            teacher: user.displayName || 'Guru',
-            subject: selectedBooking.subject,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
-          setActiveTab('laporan');
-          alert("Jurnal berhasil disimpan!");
-        } catch (error) {
-          alert("Gagal menyimpan jurnal.");
+        const b = bookings.find(x => x.id === newJournal.bookingId);
+        await db.collection('journals').add({ ...newJournal, date: new Date().toISOString().split('T')[0], teacher: user.displayName || 'Guru', subject: b.subject, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
+        setActiveTab('laporan');
+        alert("Jurnal disimpan!");
+      };
+
+      // --- FITUR BARU: CRUD INVENTARIS ---
+      const submitItem = async (e) => {
+        e.preventDefault();
+        if(role !== 'laboran') return;
+        await db.collection('inventory').add({ ...newItem, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        setNewItem({ kode: '', nama: '', kategori: 'PC', kondisi: 'Baik', catatan: '' });
+        alert("Barang ditambahkan ke Inventaris!");
+      };
+
+      const updateItemStatus = async (id, kondisi) => {
+        if(role !== 'laboran') return;
+        await db.collection('inventory').doc(id).update({ kondisi });
+      };
+
+      const deleteItem = async (id) => {
+        if(role !== 'laboran') return;
+        if(confirm("Hapus barang ini dari inventaris?")) {
+          await db.collection('inventory').doc(id).delete();
         }
       };
 
-      // --- HELPER UNTUK TIMELINE DASHBOARD ---
-      const timeToMins = (t) => {
-        if (!t) return 0;
-        const [h, m] = t.split(':').map(Number);
-        return h * 60 + m;
+      // --- FITUR BARU: EXPORT EXCEL ---
+      const exportToExcel = () => {
+        if(journals.length === 0) {
+          alert("Belum ada data jurnal untuk diexport!"); return;
+        }
+        // Format data untuk Excel
+        const dataToExport = journals.map((j, index) => ({
+          'No': index + 1,
+          'Tanggal': j.date,
+          'Nama Guru': j.teacher,
+          'Mata Pelajaran': j.subject,
+          'Materi/Tema': j.materi || '-',
+          'Perangkat Lab': j.devices ? j.devices.join(', ') : '-',
+          'Jml Kehadiran': j.attendees,
+          'Ringkasan Kegiatan': j.summary,
+          'Kendala Dilaporkan': j.issues || 'Aman'
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Data Jurnal");
+        
+        // Auto-width columns (Sederhana)
+        const wscols = [{wch: 5}, {wch: 12}, {wch: 25}, {wch: 20}, {wch: 30}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 30}];
+        worksheet['!cols'] = wscols;
+
+        XLSX.writeFile(workbook, `Laporan_Labkom_${new Date().toISOString().split('T')[0]}.xlsx`);
       };
-      
+
+      // --- HELPER TIMELINE ---
+      const timeToMins = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected');
 
       const NavItem = ({ id, icon, label }) => (
-        <button
-          onClick={() => setActiveTab(id)}
-          className={`flex items-center space-x-3 px-4 py-3 w-full rounded-lg transition-colors text-left ${
-            activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50'
-          }`}
-        >
-          <i className={`fas fa-${icon} w-5 text-center`}></i>
-          <span className="font-medium">{label}</span>
+        <button onClick={() => setActiveTab(id)} className={`flex items-center space-x-3 px-4 py-3 w-full rounded-lg transition-colors text-left ${activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50'}`}>
+          <i className={`fas fa-${icon} w-5 text-center`}></i><span className="font-medium">{label}</span>
         </button>
       );
 
-      if (loadingAuth) {
-        return <div className="min-h-screen flex items-center justify-center font-sans text-slate-500">Memuat Jurnal Labkom...</div>;
-      }
+      if (loadingAuth) return <div className="min-h-screen flex items-center justify-center text-slate-500">Memuat Jurnal Labkom...</div>;
 
       if (!user) {
         return (
           <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
             <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-200">
-              <img 
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" 
-                alt="Logo Sekolah" 
-                className="w-24 h-24 mx-auto mb-4 object-contain drop-shadow-md" 
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/100?text=Logo'; }}
-              />
+              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-24 h-24 mx-auto mb-4 object-contain" />
               <h1 className="text-2xl font-bold text-slate-800 mb-2">Jurnal Labkom Login</h1>
-              <p className="text-slate-500 mb-8 text-sm">Sistem Jurnal & Penjadwalan Lab Komputer. Silakan login untuk melanjutkan.</p>
-              
-              <button 
-                onClick={loginGoogle}
-                className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl transition-all shadow-sm flex items-center justify-center space-x-3"
-              >
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                <span>Masuk dengan Google</span>
+              <p className="text-slate-500 mb-8 text-sm">Sistem Jurnal & Penjadwalan Lab Komputer.</p>
+              <button onClick={loginGoogle} className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl flex items-center justify-center space-x-3 shadow-sm">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /><span>Masuk dengan Google</span>
               </button>
             </div>
           </div>
@@ -294,212 +263,204 @@
 
       return (
         <div className="min-h-screen flex font-sans text-slate-800">
+          {/* SIDEBAR */}
           <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex min-h-screen">
             <div className="p-6 border-b border-slate-200 flex items-center space-x-3">
-              <img 
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" 
-                alt="Logo Sekolah" 
-                className="w-12 h-12 object-contain"
-                onError={(e) => { e.target.src = 'https://via.placeholder.com/50?text=Logo'; }}
-              />
-              <div>
-                <h1 className="text-xl font-bold text-slate-800">Jurnal Labkom</h1>
-                <p className="text-xs text-slate-500">Sistem Lab Komputer</p>
-              </div>
+              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-12 h-12 object-contain" />
+              <div><h1 className="text-xl font-bold text-slate-800">Jurnal Labkom</h1><p className="text-xs text-slate-500">Sistem Terpadu</p></div>
             </div>
-
             <div className="flex-1 p-4 space-y-2">
-              <NavItem id="dashboard" icon="chart-line" label="Dashboard Jadwal" />
+              <NavItem id="dashboard" icon="chart-line" label="Dashboard Utama" />
               
               {role === 'guru' && (
                 <React.Fragment>
-                  <NavItem id="pengajuan" icon="plus-circle" label="Ajukan Pemakaian" />
-                  <NavItem id="isi-jurnal" icon="file-alt" label="Isi Jurnal Lab" />
+                  <NavItem id="pengajuan" icon="calendar-plus" label="Ajukan Pemakaian" />
+                  <NavItem id="isi-jurnal" icon="pen-square" label="Isi Jurnal Lab" />
                 </React.Fragment>
               )}
-
-              {role === 'laboran' && (
+              
+              {(role === 'laboran' || role === 'kepala_lab') && (
                 <React.Fragment>
-                  <NavItem id="persetujuan" icon="check-circle" label="Persetujuan" />
-                  <NavItem id="laporan" icon="list-alt" label="Laporan Jurnal" />
+                  {role === 'laboran' && <NavItem id="persetujuan" icon="check-double" label="Persetujuan Jadwal" />}
+                  <NavItem id="inventaris" icon="boxes" label="Inventaris Lab" />
+                  <NavItem id="laporan" icon="file-excel" label="Laporan Jurnal" />
                 </React.Fragment>
               )}
             </div>
-
             <div className="p-4 border-t border-slate-200">
               <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <img src={user.photoURL} alt="Profil" className="w-10 h-10 rounded-full border border-slate-300" />
+                <img src={user.photoURL} className="w-10 h-10 rounded-full border border-slate-300" />
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-sm font-semibold truncate text-slate-700" title={user.displayName}>{user.displayName}</p>
-                  <p className="text-xs text-slate-500 capitalize">{role}</p>
+                  <p className="text-sm font-semibold truncate">{user.displayName}</p>
+                  <p className="text-xs text-slate-500 capitalize">{role.replace('_', ' ')}</p>
                 </div>
               </div>
             </div>
           </aside>
 
+          {/* MAIN CONTENT */}
           <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-slate-800 capitalize">
-                {activeTab.replace('-', ' ')}
-              </h2>
+              <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
               
+              {/* TOMBOL SIMULASI ROLE (Untuk Demo/Pengembangan) */}
+              <div className="flex items-center space-x-2 bg-blue-50 p-1 rounded-lg border border-blue-100 mr-4">
+                <span className="text-xs font-medium text-blue-800 px-2 hidden sm:inline">Tes Role:</span>
+                <button onClick={() => { setRole('guru'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'guru' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Guru</button>
+                <button onClick={() => { setRole('laboran'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'laboran' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Laboran</button>
+                <button onClick={() => { setRole('kepala_lab'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'kepala_lab' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Kepala Lab</button>
+              </div>
+
               <div className="flex items-center space-x-4">
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-semibold text-slate-700">{user.displayName}</p>
-                  <p className="text-xs text-slate-500">{user.email}</p>
-                </div>
-                <button 
-                  onClick={logout}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors border border-red-100 flex items-center space-x-2"
-                >
-                  <i className="fas fa-sign-out-alt"></i>
-                  <span className="hidden sm:inline">Logout</span>
+                <button onClick={logout} className="px-4 py-2 text-sm font-semibold rounded-lg text-red-600 bg-red-50 border border-red-100 flex items-center space-x-2">
+                  <i className="fas fa-sign-out-alt"></i><span className="hidden sm:inline">Logout</span>
                 </button>
               </div>
             </header>
 
             <div className="flex-1 overflow-auto p-4 sm:p-6">
               
-              {/* VIEW: DASHBOARD */}
+              {/* === DASHBOARD === */}
               {activeTab === 'dashboard' && (
                 <div className="space-y-6">
+                  {/* Statistik Inventaris Khusus Laboran & Kepala Lab */}
+                  {(role === 'laboran' || role === 'kepala_lab') && (
+                    <div className="bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl p-6 text-white shadow-md flex justify-between items-center mb-6">
+                      <div>
+                        <h3 className="text-lg font-bold mb-1">Status Inventaris Lab</h3>
+                        <p className="text-blue-100 text-sm">Pemantauan aset perangkat keras laboratorium.</p>
+                      </div>
+                      <div className="flex space-x-6 text-center">
+                        <div className="bg-white/10 px-4 py-2 rounded-lg">
+                          <p className="text-2xl font-bold">{inventory.length}</p>
+                          <p className="text-xs text-blue-200">Total Alat</p>
+                        </div>
+                        <div className="bg-green-500/20 px-4 py-2 rounded-lg border border-green-400/30">
+                          <p className="text-2xl font-bold text-green-300">{inventory.filter(i => i.kondisi==='Baik').length}</p>
+                          <p className="text-xs text-blue-100">Kondisi Baik</p>
+                        </div>
+                        <div className="bg-red-500/20 px-4 py-2 rounded-lg border border-red-400/30">
+                          <p className="text-2xl font-bold text-red-300">{inventory.filter(i => i.kondisi !== 'Baik').length}</p>
+                          <p className="text-xs text-blue-100">Rusak/Perbaikan</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
                       <div className="bg-green-100 p-3 rounded-lg text-green-600"><i className="fas fa-check-circle text-2xl"></i></div>
-                      <div>
-                        <p className="text-sm text-slate-500 font-medium">Total Disetujui</p>
-                        <p className="text-2xl font-bold">{bookings.filter(b => b.status === 'approved').length}</p>
-                      </div>
+                      <div><p className="text-sm text-slate-500 font-medium">Total Disetujui</p><p className="text-2xl font-bold">{bookings.filter(b => b.status === 'approved').length}</p></div>
                     </div>
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
                       <div className="bg-amber-100 p-3 rounded-lg text-amber-600"><i className="fas fa-clock text-2xl"></i></div>
-                      <div>
-                        <p className="text-sm text-slate-500 font-medium">Menunggu Persetujuan</p>
-                        <p className="text-2xl font-bold">{bookings.filter(b => b.status === 'pending').length}</p>
-                      </div>
+                      <div><p className="text-sm text-slate-500 font-medium">Menunggu Persetujuan</p><p className="text-2xl font-bold">{bookings.filter(b => b.status === 'pending').length}</p></div>
                     </div>
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4">
                       <div className="bg-blue-100 p-3 rounded-lg text-blue-600"><i className="fas fa-file-alt text-2xl"></i></div>
-                      <div>
-                        <p className="text-sm text-slate-500 font-medium">Total Jurnal</p>
-                        <p className="text-2xl font-bold">{journals.length}</p>
-                      </div>
+                      <div><p className="text-sm text-slate-500 font-medium">Total Jurnal Masuk</p><p className="text-2xl font-bold">{journals.length}</p></div>
                     </div>
                   </div>
 
-                  {/* FITUR: TIMELINE PEMAKAIAN FLEKSIBEL (PILIH TANGGAL & SKALA 30 MNT) */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6">
                     <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
-                      <h3 className="font-semibold text-lg flex items-center">
-                        <i className="fas fa-stream mr-2 text-blue-500"></i> Garis Waktu Pemakaian
-                      </h3>
+                      <h3 className="font-semibold text-lg flex items-center"><i className="fas fa-stream mr-2 text-blue-500"></i> Garis Waktu Pemakaian</h3>
                       <div className="flex items-center space-x-2">
                         <label className="text-sm text-slate-500 font-medium">Pilih Tanggal:</label>
-                        <input 
-                          type="date" 
-                          className="p-1.5 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white shadow-sm"
-                          value={timelineDate}
-                          onChange={(e) => setTimelineDate(e.target.value)}
-                        />
+                        <input type="date" className="p-1.5 border border-slate-300 rounded-lg text-sm bg-white" value={timelineDate} onChange={(e) => setTimelineDate(e.target.value)} />
                       </div>
                     </div>
-                    
                     <div className="p-5 overflow-x-auto">
                       <div className="min-w-[800px] relative mt-2 mb-4">
-                        {/* Box Timeline 07:30 - 18:00 (Total 630 menit) */}
                         <div className="relative w-full h-24 bg-slate-100 border border-slate-200 rounded-lg overflow-hidden shadow-inner">
-                          
-                          {/* Garis Penanda per 30 Menit */}
                           {Array.from({ length: 22 }, (_, i) => 450 + (i * 30)).map(m => {
-                            if (m > 1080) return null; // Maksimal 18:00
+                            if (m > 1080) return null;
                             const left = ((m - 450) / 630) * 100;
                             const isHour = m % 60 === 0;
-                            const h = Math.floor(m / 60);
-                            const min = isHour ? '00' : '30';
-                            
-                            if (m === 450) return null; // 07:30 disembunyikan teksnya karena tertutup ujung kiri
-
+                            if (m === 450) return null;
                             return (
                               <div key={m} className={`absolute top-0 bottom-0 border-l ${isHour ? 'border-slate-300' : 'border-slate-300 border-dashed opacity-50'} z-0`} style={{ left: `${Math.max(0, left)}%` }}>
-                                <span className={`text-[10px] ${isHour ? 'text-slate-500 font-bold' : 'text-slate-400 font-medium'} ml-1 mt-1 block`}>
-                                  {h}:{min}
-                                </span>
+                                <span className={`text-[10px] ${isHour ? 'text-slate-500 font-bold' : 'text-slate-400 font-medium'} ml-1 mt-1 block`}>{Math.floor(m/60)}:{isHour ? '00' : '30'}</span>
                               </div>
                             );
                           })}
-
-                          {/* Data Booking Berdasarkan Tanggal Terpilih */}
                           {timelineBookings.map(b => {
-                            const startMins = timeToMins(b.timeStart);
-                            const endMins = timeToMins(b.timeEnd);
-                            const clampedStart = Math.max(450, startMins);
-                            const clampedEnd = Math.min(1080, endMins);
-                            if (clampedStart >= clampedEnd) return null;
-
-                            const left = ((clampedStart - 450) / 630) * 100;
-                            const width = ((clampedEnd - clampedStart) / 630) * 100;
-                            const isApproved = b.status === 'approved';
-                            const bgColor = isApproved ? 'bg-green-500' : 'bg-amber-400';
-
+                            const startMins = Math.max(450, timeToMins(b.timeStart));
+                            const endMins = Math.min(1080, timeToMins(b.timeEnd));
+                            if (startMins >= endMins) return null;
                             return (
-                              <div
-                                key={b.id}
-                                className={`absolute top-6 bottom-2 rounded opacity-90 ${bgColor} border border-white/20 z-10 flex flex-col justify-center px-2 overflow-hidden shadow-sm hover:opacity-100 transition-opacity cursor-default`}
-                                style={{ left: `${left}%`, width: `${width}%` }}
-                                title={`${b.subject} (${b.timeStart} - ${b.timeEnd}) [${isApproved ? 'Disetujui' : 'Menunggu'}]`}
-                              >
+                              <div key={b.id} className={`absolute top-6 bottom-2 rounded opacity-90 ${b.status === 'approved' ? 'bg-green-500' : 'bg-amber-400'} border border-white/20 z-10 flex flex-col justify-center px-2 overflow-hidden shadow-sm`} style={{ left: `${((startMins - 450) / 630) * 100}%`, width: `${((endMins - startMins) / 630) * 100}%` }}>
                                 <span className="text-[11px] text-white font-bold truncate leading-tight drop-shadow-sm">{b.class}</span>
-                                <span className="text-[9px] text-white/90 truncate leading-tight mt-0.5 hidden sm:block">{b.teacher}</span>
+                                <span className="text-[9px] text-white/90 truncate leading-tight mt-0.5">{b.teacher}</span>
                               </div>
                             );
                           })}
-                        </div>
-                        <div className="flex justify-between text-xs font-bold text-slate-500 mt-2 px-1">
-                          <span>07:30</span>
-                          <div className="flex space-x-4">
-                            <span className="flex items-center"><span className="w-3 h-3 bg-amber-400 rounded-sm mr-1.5 inline-block"></span>Pending</span>
-                            <span className="flex items-center"><span className="w-3 h-3 bg-green-500 rounded-sm mr-1.5 inline-block"></span>Disetujui</span>
-                          </div>
-                          <span>18:00</span>
                         </div>
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* Tabel Jadwal */}
+              {/* === INVENTARIS LAB (BARU) === */}
+              {activeTab === 'inventaris' && (role === 'laboran' || role === 'kepala_lab') && (
+                <div className="space-y-6">
+                  {/* Form Tambah (Hanya Laboran) */}
+                  {role === 'laboran' && (
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
+                      <h3 className="font-semibold text-lg text-slate-800 mb-4 border-b pb-2"><i className="fas fa-plus-circle text-blue-500 mr-2"></i>Tambah Barang Inventaris</h3>
+                      <form onSubmit={submitItem} className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div className="col-span-1"><input type="text" placeholder="Kode (ex: PC-01)" required className="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500" value={newItem.kode} onChange={e=>setNewItem({...newItem, kode: e.target.value})}/></div>
+                        <div className="col-span-2"><input type="text" placeholder="Nama Barang (ex: PC Asus Core i5)" required className="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-blue-500" value={newItem.nama} onChange={e=>setNewItem({...newItem, nama: e.target.value})}/></div>
+                        <div className="col-span-1">
+                          <select className="w-full p-2 border rounded outline-none bg-white" value={newItem.kategori} onChange={e=>setNewItem({...newItem, kategori: e.target.value})}>
+                            <option value="PC">PC / Komputer</option><option value="Laptop">Laptop</option><option value="Proyektor">Proyektor</option>
+                            <option value="Jaringan">Alat Jaringan</option><option value="Aksesoris">Aksesoris (Mouse/KB)</option>
+                          </select>
+                        </div>
+                        <div className="col-span-1"><button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">Tambah</button></div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Tabel Daftar Inventaris */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-5 border-b border-slate-200 bg-slate-50">
-                      <h3 className="font-semibold text-lg flex items-center"><i className="fas fa-calendar-alt mr-2 text-slate-500"></i> Daftar Jadwal Disetujui</h3>
+                    <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                      <h3 className="font-semibold text-lg"><i className="fas fa-boxes text-slate-500 mr-2"></i>Daftar Peralatan Laboratorium</h3>
                     </div>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse min-w-[600px]">
+                      <table className="w-full text-left border-collapse">
                         <thead>
-                          <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                            <th className="p-4 font-medium">Tanggal</th>
-                            <th className="p-4 font-medium">Waktu</th>
-                            <th className="p-4 font-medium">Guru</th>
-                            <th className="p-4 font-medium">Mata Pelajaran</th>
-                            <th className="p-4 font-medium">Kelas</th>
+                          <tr className="bg-slate-100 text-slate-600 text-sm border-b border-slate-200">
+                            <th className="p-4 font-semibold">Kode</th>
+                            <th className="p-4 font-semibold">Nama Barang</th>
+                            <th className="p-4 font-semibold">Kategori</th>
+                            <th className="p-4 font-semibold">Kondisi</th>
+                            {role === 'laboran' && <th className="p-4 font-semibold text-right">Aksi Update</th>}
                           </tr>
                         </thead>
                         <tbody>
-                          {bookings.filter(b => b.status === 'approved').map(booking => (
-                            <tr key={booking.id} className="border-b border-slate-100 hover:bg-slate-50">
-                              <td className="p-4 font-medium">{booking.date}</td>
-                              <td className="p-4 text-blue-600 font-medium">{booking.timeStart} - {booking.timeEnd}</td>
-                              <td className="p-4 flex items-center space-x-2">
-                                <i className="fas fa-user-circle text-slate-400"></i>
-                                <span>{booking.teacher}</span>
-                              </td>
-                              <td className="p-4">{booking.subject}</td>
+                          {inventory.map(item => (
+                            <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                              <td className="p-4 font-medium text-slate-800">{item.kode}</td>
+                              <td className="p-4 font-medium">{item.nama}</td>
+                              <td className="p-4"><span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">{item.kategori}</span></td>
                               <td className="p-4">
-                                <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded-md text-xs font-semibold">{booking.class}</span>
+                                {item.kondisi === 'Baik' && <span className="text-green-600 font-bold text-sm"><i className="fas fa-check-circle mr-1"></i>Baik</span>}
+                                {item.kondisi === 'Rusak Ringan' && <span className="text-amber-500 font-bold text-sm"><i className="fas fa-exclamation-circle mr-1"></i>Rusak Ringan</span>}
+                                {item.kondisi === 'Rusak Berat' && <span className="text-red-600 font-bold text-sm"><i className="fas fa-times-circle mr-1"></i>Rusak Berat</span>}
                               </td>
+                              {role === 'laboran' && (
+                                <td className="p-4 text-right flex justify-end space-x-2">
+                                  <select className="p-1.5 border rounded text-xs outline-none bg-white font-medium" value={item.kondisi} onChange={(e) => updateItemStatus(item.id, e.target.value)}>
+                                    <option value="Baik">Set Baik</option><option value="Rusak Ringan">Set Rusak Ringan</option><option value="Rusak Berat">Set Rusak Berat</option>
+                                  </select>
+                                  <button onClick={() => deleteItem(item.id)} className="px-2 py-1.5 bg-red-100 text-red-600 rounded hover:bg-red-200"><i className="fas fa-trash"></i></button>
+                                </td>
+                              )}
                             </tr>
                           ))}
-                          {bookings.filter(b => b.status === 'approved').length === 0 && (
-                            <tr><td colSpan="5" className="p-8 text-center text-slate-500">Tidak ada jadwal disetujui.</td></tr>
-                          )}
+                          {inventory.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-500">Belum ada barang di inventaris.</td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -507,256 +468,118 @@
                 </div>
               )}
 
-              {/* VIEW: PENGAJUAN */}
+              {/* === LAPORAN JURNAL (DENGAN EXPORT EXCEL) === */}
+              {activeTab === 'laporan' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
+                    <h3 className="font-semibold text-lg text-slate-800"><i className="fas fa-file-alt text-blue-500 mr-2"></i>Riwayat & Rekap Jurnal</h3>
+                    {(role === 'laboran' || role === 'kepala_lab') && (
+                      <button onClick={exportToExcel} className="mt-3 sm:mt-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors flex items-center shadow-sm">
+                        <i className="fas fa-file-excel mr-2"></i> Export ke Excel
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    {journals.map(journal => (
+                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-bold text-lg text-blue-700">{journal.subject}</h4>
+                            <p className="text-sm text-slate-500 flex items-center mt-1"><i className="fas fa-user mr-1.5"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5"></i> {journal.date}</p>
+                          </div>
+                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-bold border border-slate-200">{journal.attendees} Hadir</span>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-3.5 text-sm text-slate-700 mb-3 border border-slate-200">
+                          <div className="mb-2.5 flex items-start"><span className="font-bold w-28 flex-shrink-0">Materi/Tema</span><span>: {journal.materi || '-'}</span></div>
+                          <div className="mb-2.5 flex items-start"><span className="font-bold w-28 flex-shrink-0">Perangkat</span><div className="flex-1"><span>:</span> {journal.devices?.map(d => <span key={d} className="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold mr-1">{d}</span>)}</div></div>
+                          <div className="flex items-start"><span className="font-bold w-28 flex-shrink-0">Ringkasan</span><span>: {journal.summary}</span></div>
+                        </div>
+                        {journal.issues && <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-200 flex"><i className="fas fa-exclamation-triangle mr-2 mt-0.5 text-red-600"></i><div><span className="font-bold block mb-0.5 text-red-900">Kendala:</span>{journal.issues}</div></div>}
+                      </div>
+                    ))}
+                    {journals.length === 0 && <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">Belum ada jurnal disubmit.</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* === PENGAJUAN & ISI JURNAL (TETAP SAMA UNTUK GURU) === */}
               {activeTab === 'pengajuan' && role === 'guru' && (
                 <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-blue-50">
-                    <h3 className="font-semibold text-lg text-blue-800">Form Pengajuan Pemakaian Lab</h3>
-                  </div>
+                  <div className="p-5 border-b border-slate-200 bg-blue-50"><h3 className="font-semibold text-lg text-blue-800">Form Pengajuan Pemakaian Lab</h3></div>
                   <form onSubmit={submitBooking} className="p-6 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Tanggal</label>
-                        <input type="date" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" 
-                               value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} />
-                      </div>
-                      <div className="flex space-x-2">
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Mulai</label>
-                          <input type="time" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                                 value={newBooking.timeStart} onChange={e => setNewBooking({...newBooking, timeStart: e.target.value})} />
-                        </div>
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Selesai</label>
-                          <input type="time" required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                                 value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} />
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Mata Pelajaran / Kegiatan</label>
-                      <input type="text" required placeholder="Contoh: Pemrograman Web" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                             value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} />
-                    </div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Kelas</label>
-                        <input type="text" required placeholder="Contoh: XII RPL 1" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                               value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah PC</label>
-                        <input type="number" required placeholder="Contoh: 36" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                               value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} />
+                      <div><label className="block text-sm font-medium mb-1">Tanggal</label><input type="date" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} /></div>
+                      <div className="flex space-x-2">
+                        <div className="flex-1"><label className="block text-sm font-medium mb-1">Mulai</label><input type="time" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.timeStart} onChange={e => setNewBooking({...newBooking, timeStart: e.target.value})} /></div>
+                        <div className="flex-1"><label className="block text-sm font-medium mb-1">Selesai</label><input type="time" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} /></div>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">No. WhatsApp Anda (Untuk Notif Persetujuan)</label>
-                      <input type="text" placeholder="Opsional, Contoh: 081234567890" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
-                             value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} />
-                      <p className="text-xs text-slate-500 mt-1">*Sistem akan mengirim konfirmasi ke nomor ini jika jadwal disetujui laboran.</p>
+                    <div><label className="block text-sm font-medium mb-1">Mapel / Kegiatan</label><input type="text" required placeholder="Ex: Praktek Jaringan" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} /></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="Ex: XII RPL" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
+                      <div><label className="block text-sm font-medium mb-1">Jml PC</label><input type="number" required placeholder="Ex: 36" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} /></div>
                     </div>
-
-                    <div className="pt-4">
-                      <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
-                        Kirim Pengajuan
-                      </button>
-                    </div>
+                    <div><label className="block text-sm font-medium mb-1">No. WA Anda</label><input type="text" placeholder="Untuk konfirmasi ACC" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} /></div>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4">Kirim Pengajuan</button>
                   </form>
                 </div>
               )}
 
-              {/* VIEW: PERSETUJUAN */}
+              {activeTab === 'isi-jurnal' && role === 'guru' && (
+                <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-200 bg-green-50"><h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3></div>
+                  <form onSubmit={submitJournal} className="p-6 space-y-4">
+                    <div><label className="block text-sm font-medium mb-1">Jadwal Anda (Disetujui)</label><select required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.bookingId} onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}><option value="">-- Pilih Jadwal --</option>{bookings.filter(b => b.status === 'approved' && b.teacherEmail === user.email).map(b => (<option key={b.id} value={b.id}>{b.date} | {b.subject}</option>))}</select></div>
+                    <div><label className="block text-sm font-medium mb-1">Materi / Tema</label><input type="text" required placeholder="Materi diajarkan..." className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} /></div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Perangkat Digunakan</label>
+                      <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border">
+                        {['PC', 'Proyektor', 'Smartboard', 'Laptop'].map(dev => (
+                          <label key={dev} className="flex items-center space-x-2"><input type="checkbox" checked={newJournal.devices.includes(dev)} onChange={() => handleDeviceChange(dev)} /><span>{dev}</span></label>
+                        ))}
+                      </div>
+                    </div>
+                    <div><label className="block text-sm font-medium mb-1">Jml Siswa Hadir</label><input type="number" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} /></div>
+                    <div><label className="block text-sm font-medium mb-1">Ringkasan Kegiatan</label><textarea required rows="2" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea></div>
+                    <div><label className="block text-sm font-medium mb-1">Kendala Alat (Opsional)</label><textarea rows="2" placeholder="Cth: PC-05 Mouse rusak" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea></div>
+                    <button type="submit" className="w-full bg-green-600 text-white font-semibold py-3 rounded-xl mt-4">Simpan Jurnal</button>
+                  </form>
+                </div>
+              )}
+
+              {/* === PERSETUJUAN === */}
               {activeTab === 'persetujuan' && role === 'laboran' && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-slate-50">
-                    <h3 className="font-semibold text-lg flex items-center">Manajemen Pengajuan</h3>
-                  </div>
+                  <div className="p-5 border-b bg-slate-50"><h3 className="font-semibold text-lg">Manajemen Pengajuan</h3></div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[600px]">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-200">
-                          <th className="p-4 font-medium">Tgl & Waktu</th>
-                          <th className="p-4 font-medium">Guru / Mapel</th>
-                          <th className="p-4 font-medium">Status</th>
-                          <th className="p-4 font-medium text-right">Aksi</th>
-                        </tr>
-                      </thead>
+                      <thead><tr className="bg-slate-50 text-slate-500 text-sm border-b"><th className="p-4">Tgl & Waktu</th><th className="p-4">Guru / Mapel</th><th className="p-4">Status</th><th className="p-4 text-right">Aksi</th></tr></thead>
                       <tbody>
                         {bookings.map(booking => (
-                          <tr key={booking.id} className="border-b border-slate-100 hover:bg-slate-50">
+                          <tr key={booking.id} className="border-b hover:bg-slate-50">
+                            <td className="p-4"><div className="font-medium text-slate-800">{booking.date}</div><div className="text-xs text-slate-500">{booking.timeStart} - {booking.timeEnd}</div></td>
+                            <td className="p-4"><div className="font-medium text-slate-800">{booking.teacher}</div><div className="text-xs text-slate-500">{booking.subject}</div></td>
                             <td className="p-4">
-                              <div className="font-medium text-slate-800">{booking.date}</div>
-                              <div className="text-xs text-slate-500">{booking.timeStart} - {booking.timeEnd}</div>
+                              {booking.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">Menunggu</span>}
+                              {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Disetujui</span>}
+                              {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Ditolak</span>}
                             </td>
-                            <td className="p-4">
-                              <div className="font-medium text-slate-800">{booking.teacher}</div>
-                              <div className="text-xs text-slate-500">{booking.subject}</div>
-                            </td>
-                            <td className="p-4">
-                              {booking.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-xs font-semibold">Menunggu</span>}
-                              {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-xs font-semibold">Disetujui</span>}
-                              {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-full text-xs font-semibold">Ditolak</span>}
-                            </td>
-                            
-                            {/* FITUR: TOMBOL EDIT STATUS UNTUK LABORAN */}
                             <td className="p-4 text-right">
                               <div className="flex justify-end space-x-2">
-                                {booking.status !== 'approved' && (
-                                  <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg shadow-sm transition-colors" title="Ubah ke Disetujui">
-                                    <i className="fas fa-check"></i>
-                                  </button>
-                                )}
-                                {booking.status !== 'rejected' && (
-                                  <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg shadow-sm transition-colors" title="Ubah ke Ditolak">
-                                    <i className="fas fa-times"></i>
-                                  </button>
-                                )}
-                                {booking.status !== 'pending' && (
-                                  <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-lg shadow-sm transition-colors" title="Batalkan Keputusan (Kembali ke Menunggu)">
-                                    <i className="fas fa-undo"></i>
-                                  </button>
-                                )}
+                                {booking.status !== 'approved' && <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 rounded-lg"><i className="fas fa-check"></i></button>}
+                                {booking.status !== 'rejected' && <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 rounded-lg"><i className="fas fa-times"></i></button>}
+                                {booking.status !== 'pending' && <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border text-slate-600 rounded-lg"><i className="fas fa-undo"></i></button>}
                               </div>
                             </td>
                           </tr>
                         ))}
-                        {bookings.length === 0 && (
-                          <tr><td colSpan="4" className="p-8 text-center text-slate-500">Belum ada data pengajuan.</td></tr>
-                        )}
                       </tbody>
                     </table>
                   </div>
                 </div>
               )}
-
-              {/* VIEW: ISI JURNAL */}
-              {activeTab === 'isi-jurnal' && role === 'guru' && (
-                <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-green-50">
-                    <h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3>
-                  </div>
-                  <form onSubmit={submitJournal} className="p-6 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Pilih Jadwal Anda</label>
-                      <select required className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                              value={newJournal.bookingId} onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}>
-                        <option value="">-- Pilih Jadwal yang Selesai --</option>
-                        {bookings.filter(b => b.status === 'approved' && b.teacherEmail === user.email).map(b => (
-                          <option key={b.id} value={b.id}>{b.date} | {b.subject}</option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-slate-500 mt-1">*Hanya jadwal Anda yang telah disetujui laboran yang akan muncul di sini.</p>
-                    </div>
-
-                    {/* FITUR: FIELD MATERI */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Materi / Tema Pembelajaran</label>
-                      <input type="text" required placeholder="Contoh: Pengenalan HTML Dasar" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                             value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} />
-                    </div>
-
-                    {/* FITUR: CHECKLIST PERANGKAT */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Perangkat Lab yang Digunakan</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                        {['PC', 'Proyektor', 'Smartboard', 'Laptop'].map(dev => (
-                          <label key={dev} className="flex items-center space-x-2 cursor-pointer">
-                            <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" 
-                                   checked={newJournal.devices.includes(dev)} onChange={() => handleDeviceChange(dev)} />
-                            <span className="text-sm font-medium text-slate-700">{dev}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Jumlah Siswa Hadir</label>
-                      <input type="number" required placeholder="Contoh: 35" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                             value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Ringkasan Kegiatan (Output/Hasil)</label>
-                      <textarea rows="3" required placeholder="Jelaskan secara singkat apa yang dilakukan siswa..." className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                             value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Catatan Kendala Alat (Opsional)</label>
-                      <textarea rows="2" placeholder="Contoh: PC No 14 keyboardnya rusak" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50"
-                             value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea>
-                    </div>
-                    
-                    <div className="pt-4">
-                      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition-colors shadow-sm">
-                        Simpan Jurnal
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* VIEW: LAPORAN JURNAL */}
-              {activeTab === 'laporan' && (
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-lg text-slate-800">Riwayat Jurnal Pemakaian</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {journals.map(journal => (
-                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative">
-                        <div className="flex flex-col sm:flex-row justify-between items-start mb-4">
-                          <div>
-                            <h4 className="font-bold text-lg text-blue-700">{journal.subject}</h4>
-                            <p className="text-sm text-slate-500 flex items-center mt-1">
-                              <i className="fas fa-user mr-1.5 text-slate-400"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5 text-slate-400"></i> {journal.date}
-                            </p>
-                          </div>
-                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-bold mt-2 sm:mt-0 border border-slate-200 shadow-sm">
-                            {journal.attendees} Siswa Hadir
-                          </span>
-                        </div>
-                        
-                        <div className="bg-slate-50 rounded-lg p-3.5 text-sm text-slate-700 mb-3 border border-slate-200">
-                          {/* Tampilan Materi & Perangkat */}
-                          <div className="mb-2.5 flex items-start">
-                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Materi/Tema</span>
-                            <span className="font-medium text-slate-600">: {journal.materi || '-'}</span>
-                          </div>
-                          <div className="mb-2.5 flex items-start">
-                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Perangkat</span>
-                            <div className="flex-1">
-                              <span className="font-medium text-slate-600 mr-1">:</span>
-                              {journal.devices && journal.devices.length > 0 ? (
-                                journal.devices.map(d => (
-                                  <span key={d} className="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold mr-1 mb-1 border border-blue-200">{d}</span>
-                                ))
-                              ) : '-'}
-                            </div>
-                          </div>
-                          <div className="flex items-start">
-                            <span className="font-bold text-slate-800 w-28 flex-shrink-0">Ringkasan</span>
-                            <span className="font-medium text-slate-600">: {journal.summary}</span>
-                          </div>
-                        </div>
-
-                        {journal.issues && (
-                          <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-200 flex items-start">
-                            <i className="fas fa-exclamation-triangle mr-2 mt-0.5 flex-shrink-0 text-red-600"></i>
-                            <div>
-                              <span className="font-bold block mb-0.5 text-red-900">Kendala Laboratorium:</span>
-                              {journal.issues}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    {journals.length === 0 && (
-                      <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">
-                        Belum ada jurnal yang disubmit.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
+              
             </div>
           </main>
         </div>
