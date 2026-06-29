@@ -17,7 +17,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   
-  <!-- FITUR BARU: Import SheetJS untuk Export Excel -->
+  <!-- Import SheetJS untuk Export Excel -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-50">
@@ -49,7 +49,7 @@
       'iwandoumy18@guru.sma.belajar.id'
     ];
 
-    // FITUR BARU: Email khusus untuk Kepala Lab (Pengawasan)
+    // Email khusus untuk Kepala Lab (Pengawasan)
     const KEPALA_LAB_EMAILS = [
       'doumy@sman1bandaaceh.sch.id'
     ];
@@ -66,13 +66,13 @@
       const [bookings, setBookings] = useState([]);
       const [journals, setJournals] = useState([]);
       
-      // FITUR BARU: State Inventaris
+      // State Inventaris
       const [inventory, setInventory] = useState([]);
 
       const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: '' });
       const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
       
-      // FITUR UPDATE: Form Inventaris menggunakan Qty per kondisi
+      // Form Inventaris menggunakan Qty per kondisi
       const [newItem, setNewItem] = useState({ kode: '', nama: '', kategori: 'PC', qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
       const [editItemId, setEditItemId] = useState(null);
       const [editItemData, setEditItemData] = useState({ qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
@@ -84,7 +84,7 @@
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           if (currentUser) {
             setUser(currentUser);
-            // Penentuan 3 Role
+            // Penentuan 3 Role secara otomatis berdasarkan Email Google asli yang login
             if (ADMIN_EMAILS.includes(currentUser.email)) {
               setRole('laboran');
             } else if (KEPALA_LAB_EMAILS.includes(currentUser.email)) {
@@ -206,7 +206,7 @@
         alert("Jurnal disimpan!");
       };
 
-      // --- FITUR BARU: CRUD INVENTARIS BERKELOMPOK ---
+      // --- CRUD INVENTARIS BERKELOMPOK ---
       const submitItem = async (e) => {
         e.preventDefault();
         if(role !== 'laboran') return;
@@ -238,7 +238,7 @@
         }
       };
 
-      // --- FITUR BARU: EXPORT EXCEL ---
+      // --- EXPORT EXCEL ---
       const exportToExcel = () => {
         if(journals.length === 0) {
           alert("Belum ada data jurnal untuk diexport!"); return;
@@ -260,7 +260,7 @@
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data Jurnal");
         
-        // Auto-width columns (Sederhana)
+        // Auto-width columns
         const wscols = [{wch: 5}, {wch: 12}, {wch: 25}, {wch: 20}, {wch: 30}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 30}];
         worksheet['!cols'] = wscols;
 
@@ -343,15 +343,11 @@
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
               
-              {/* TOMBOL SIMULASI ROLE (Untuk Demo/Pengembangan) */}
-              <div className="flex items-center space-x-2 bg-blue-50 p-1 rounded-lg border border-blue-100 mr-4">
-                <span className="text-xs font-medium text-blue-800 px-2 hidden sm:inline">Tes Role:</span>
-                <button onClick={() => { setRole('guru'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'guru' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Guru</button>
-                <button onClick={() => { setRole('laboran'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'laboran' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Laboran</button>
-                <button onClick={() => { setRole('kepala_lab'); setActiveTab('dashboard'); }} className={`px-2 py-1 text-xs rounded-md ${role === 'kepala_lab' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-100'}`}>Kepala Lab</button>
-              </div>
-
               <div className="flex items-center space-x-4">
+                <div className="hidden sm:block text-right">
+                  <p className="text-sm font-semibold text-slate-700">{user.displayName}</p>
+                  <p className="text-xs text-slate-500">{user.email}</p>
+                </div>
                 <button onClick={logout} className="px-4 py-2 text-sm font-semibold rounded-lg text-red-600 bg-red-50 border border-red-100 flex items-center space-x-2">
                   <i className="fas fa-sign-out-alt"></i><span className="hidden sm:inline">Logout</span>
                 </button>
@@ -442,7 +438,7 @@
                 </div>
               )}
 
-              {/* === INVENTARIS LAB (BARU & DIPERBARUI) === */}
+              {/* === INVENTARIS LAB === */}
               {activeTab === 'inventaris' && (role === 'laboran' || role === 'kepala_lab') && (
                 <div className="space-y-6">
                   {/* Form Tambah Kelompok Barang (Hanya Laboran) */}
@@ -462,8 +458,12 @@
                           <div>
                              <label className="text-xs text-slate-500 font-bold block mb-1">Kategori</label>
                              <select className="w-full p-2.5 border border-slate-300 rounded-lg outline-none bg-slate-50" value={newItem.kategori} onChange={e=>setNewItem({...newItem, kategori: e.target.value})}>
-                              <option value="PC">PC / Komputer</option><option value="Laptop">Laptop</option><option value="Proyektor">Proyektor</option>
-                              <option value="Jaringan">Alat Jaringan</option><option value="Aksesoris">Aksesoris (Mouse/KB)</option>
+                              <option value="PC">PC / Komputer</option>
+                              <option value="Laptop">Laptop</option>
+                              <option value="Proyektor">Proyektor</option>
+                              <option value="Jaringan">Alat Jaringan</option>
+                              <option value="Aksesoris">Aksesoris (Mouse/KB)</option>
+                              <option value="Mobiler">Mobiler (Meja/Kursi/Lemari)</option>
                             </select>
                           </div>
                         </div>
@@ -557,7 +557,7 @@
                 </div>
               )}
 
-              {/* === LAPORAN JURNAL (DENGAN EXPORT EXCEL) === */}
+              {/* === LAPORAN JURNAL === */}
               {activeTab === 'laporan' && (
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
@@ -592,7 +592,7 @@
                 </div>
               )}
 
-              {/* === PENGAJUAN & ISI JURNAL (TETAP SAMA UNTUK GURU) === */}
+              {/* === PENGAJUAN & ISI JURNAL === */}
               {activeTab === 'pengajuan' && role === 'guru' && (
                 <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="p-5 border-b border-slate-200 bg-blue-50"><h3 className="font-semibold text-lg text-blue-800">Form Pengajuan Pemakaian Lab</h3></div>
