@@ -154,14 +154,14 @@
         if(role === 'kepala_lab') return; // Proteksi Role
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'approved' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
       };
 
       const handleReject = async (id) => {
         if(role === 'kepala_lab') return;
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'rejected' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
       };
 
       const handlePending = async (id) => {
@@ -182,7 +182,7 @@
           });
           
           // Teks Pesan untuk dikirim ke WhatsApp Laboran
-          const pesanLaboran = `*Pengajuan Lab Baru!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
+          const pesanLaboran = `*Pengajuan Pemakaian Labkom!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
           sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
 
           setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: user.displayName || '' });
