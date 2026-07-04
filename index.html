@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jurnal Labkom - Jurnal Lab Komputer</title>
+  
+  <!-- Favicon Logo SMAN 1 Banda Aceh -->
   <link rel="icon" type="image/png" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10">
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -49,7 +52,6 @@
       'iwandoumy18@guru.sma.belajar.id'
     ];
 
-    // Email khusus untuk Kepala Lab (Pengawasan)
     const KEPALA_LAB_EMAILS = [
       'doumy@sman1bandaaceh.sch.id'
     ];
@@ -59,20 +61,19 @@
 
     function App() {
       const [user, setUser] = useState(null);
-      const [role, setRole] = useState('guru'); // 'guru', 'laboran', 'kepala_lab'
+      const [role, setRole] = useState('guru'); 
       const [loadingAuth, setLoadingAuth] = useState(true);
 
       const [activeTab, setActiveTab] = useState('dashboard');
       const [bookings, setBookings] = useState([]);
       const [journals, setJournals] = useState([]);
-      
-      // State Inventaris
       const [inventory, setInventory] = useState([]);
 
+      // State Pengajuan & Edit Pengajuan
       const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: '' });
-      const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
+      const [editingBookingId, setEditingBookingId] = useState(null); // Penanda sedang edit jadwal
       
-      // Form Inventaris menggunakan Qty per kondisi
+      const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
       const [newItem, setNewItem] = useState({ kode: '', nama: '', kategori: 'PC', qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
       const [editItemId, setEditItemId] = useState(null);
       const [editItemData, setEditItemData] = useState({ qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
@@ -84,7 +85,6 @@
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           if (currentUser) {
             setUser(currentUser);
-            // Penentuan 3 Role secara otomatis berdasarkan Email Google asli yang login
             if (ADMIN_EMAILS.includes(currentUser.email)) {
               setRole('laboran');
             } else if (KEPALA_LAB_EMAILS.includes(currentUser.email)) {
@@ -92,10 +92,8 @@
             } else {
               setRole('guru');
             }
-            
-            // Auto-fill nama guru dari Google, tapi membebaskan untuk diedit
+            // Auto-fill nama
             setNewBooking(prev => ({ ...prev, teacherName: currentUser.displayName || '' }));
-            
           } else {
             setUser(null);
           }
@@ -119,7 +117,6 @@
             setJournals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
           });
           
-        // Fetch Inventaris
         const unsubInventory = db.collection('inventory')
           .orderBy('createdAt', 'desc')
           .onSnapshot((snapshot) => {
@@ -151,17 +148,17 @@
 
       // --- AKSI LABORAN ---
       const handleApprove = async (id) => {
-        if(role === 'kepala_lab') return; // Proteksi Role
+        if(role === 'kepala_lab') return; 
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'approved' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
       };
 
       const handleReject = async (id) => {
         if(role === 'kepala_lab') return;
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'rejected' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan Lab Anda mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
       };
 
       const handlePending = async (id) => {
@@ -169,30 +166,85 @@
         await db.collection('bookings').doc(id).update({ status: 'pending' });
       };
 
-      // --- AKSI GURU ---
+      // --- AKSI GURU (PENGAJUAN, EDIT, BATAL) ---
       const submitBooking = async (e) => {
         e.preventDefault();
         try {
-          await db.collection('bookings').add({ 
-            ...newBooking, 
-            teacher: newBooking.teacherName || user.displayName || 'Guru', 
-            teacherEmail: user.email, 
-            status: 'pending', 
-            createdAt: firebase.firestore.FieldValue.serverTimestamp() 
-          });
-          
-          // Teks Pesan untuk dikirim ke WhatsApp Laboran
-          const pesanLaboran = `*Pengajuan Pemakaian Labkom!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
-          sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+          if (editingBookingId) {
+            // Mode Update/Edit Jadwal
+            await db.collection('bookings').doc(editingBookingId).update({
+              ...newBooking,
+              teacher: newBooking.teacherName || user.displayName || 'Guru',
+              status: 'pending' // Kembalikan ke pending agar diperiksa ulang
+            });
+            
+            const pesanLaboran = `*Perubahan/Edit Pengajuan Lab!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nTelah diubah & diajukan ulang. Silakan cek web Jurnal Labkom.`;
+            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            
+            alert("Pengajuan berhasil diperbarui dan diajukan ulang!");
+            setEditingBookingId(null);
+
+          } else {
+            // Mode Pengajuan Baru
+            await db.collection('bookings').add({ 
+              ...newBooking, 
+              teacher: newBooking.teacherName || user.displayName || 'Guru', 
+              teacherEmail: user.email, 
+              status: 'pending', 
+              createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+            });
+            
+            const pesanLaboran = `*Pengajuan Lab Baru!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
+            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            
+            alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
+          }
 
           setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: user.displayName || '' });
-          setActiveTab('dashboard');
-          alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
+          setActiveTab('riwayat-pengajuan'); // Arahkan ke tab riwayat
         } catch (error) {
-          alert("Gagal mengirim pengajuan.");
+          alert("Gagal memproses pengajuan.");
         }
       };
 
+      const handleEditBooking = (b) => {
+        setEditingBookingId(b.id);
+        setNewBooking({
+          subject: b.subject,
+          date: b.date,
+          timeStart: b.timeStart,
+          timeEnd: b.timeEnd,
+          class: b.class,
+          pcsNeeded: b.pcsNeeded,
+          teacherWa: b.teacherWa || '',
+          teacherName: b.teacherName || b.teacher || user.displayName || ''
+        });
+        setActiveTab('pengajuan'); // Pindah ke form pengajuan
+      };
+
+      const cancelEditBooking = () => {
+        setEditingBookingId(null);
+        setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: user.displayName || '' });
+        setActiveTab('riwayat-pengajuan');
+      };
+
+      const handleCancelBooking = async (id) => {
+        if (confirm("Apakah Anda yakin ingin MEMBATALKAN jadwal ini? Slot waktu akan dikosongkan.")) {
+          try {
+            await db.collection('bookings').doc(id).update({ status: 'cancelled' });
+            
+            const b = bookings.find(x => x.id === id);
+            const pesanLaboran = `*PEMBATALAN JADWAL LAB*\n\nJadwal atas nama ${b.teacher} untuk mapel ${b.subject} pada tanggal ${b.date} telah DIBATALKAN oleh guru yang bersangkutan.`;
+            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            
+            alert("Jadwal berhasil dibatalkan.");
+          } catch (error) {
+            alert("Gagal membatalkan jadwal.");
+          }
+        }
+      };
+
+      // --- JURNAL ---
       const handleDeviceChange = (device) => {
         setNewJournal(prev => ({ ...prev, devices: prev.devices.includes(device) ? prev.devices.filter(d => d !== device) : [...prev.devices, device] }));
       };
@@ -206,7 +258,7 @@
         alert("Jurnal disimpan!");
       };
 
-      // --- CRUD INVENTARIS BERKELOMPOK ---
+      // --- INVENTARIS ---
       const submitItem = async (e) => {
         e.preventDefault();
         if(role !== 'laboran') return;
@@ -238,12 +290,8 @@
         }
       };
 
-      // --- EXPORT EXCEL ---
       const exportToExcel = () => {
-        if(journals.length === 0) {
-          alert("Belum ada data jurnal untuk diexport!"); return;
-        }
-        // Format data untuk Excel
+        if(journals.length === 0) { alert("Belum ada data jurnal untuk diexport!"); return; }
         const dataToExport = journals.map((j, index) => ({
           'No': index + 1,
           'Tanggal': j.date,
@@ -255,23 +303,39 @@
           'Ringkasan Kegiatan': j.summary,
           'Kendala Dilaporkan': j.issues || 'Aman'
         }));
-
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data Jurnal");
-        
-        // Auto-width columns
-        const wscols = [{wch: 5}, {wch: 12}, {wch: 25}, {wch: 20}, {wch: 30}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 30}];
-        worksheet['!cols'] = wscols;
-
+        worksheet['!cols'] = [{wch: 5}, {wch: 12}, {wch: 25}, {wch: 20}, {wch: 30}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 30}];
         XLSX.writeFile(workbook, `Laporan_Labkom_${new Date().toISOString().split('T')[0]}.xlsx`);
       };
 
       // --- HELPER TIMELINE & DASHBOARD ---
       const timeToMins = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-      const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected');
+      
+      // Filter Booking untuk Timeline (Jangan tampilkan yang Rejected dan Cancelled)
+      const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected' && b.status !== 'cancelled');
 
-      // Kalkulasi Dashboard Inventaris
+      // FITUR BARU: Logika Overdue (Lewat 1x24 jam belum isi jurnal)
+      const overdueBookingsAll = bookings.filter(b => {
+        if (b.status !== 'approved') return false;
+        const hasJournal = journals.some(j => j.bookingId === b.id);
+        if (hasJournal) return false;
+        
+        const endDateTime = new Date(`${b.date}T${b.timeEnd}`);
+        const now = new Date();
+        const diffHours = (now - endDateTime) / (1000 * 60 * 60);
+        return diffHours >= 24;
+      });
+      const overdueGuru = overdueBookingsAll.filter(b => b.teacherEmail === user?.email);
+
+      const handleSendReminderWA = (b) => {
+        if(!b.teacherWa) { alert("Guru ini tidak mencantumkan nomor WA saat pengajuan."); return; }
+        const pesan = `*REMINDER JURNAL LABKOM*\n\nYth. Bapak/Ibu ${b.teacher},\nMohon segera mengisi jurnal pemakaian lab untuk mata pelajaran *${b.subject}* kelas *${b.class}* (Tanggal ${b.date}).\n\nWaktu pemakaian sudah lewat dari 1x24 Jam.\n\nTerima kasih.`;
+        sendWhatsApp(b.teacherWa, pesan);
+        alert("Pesan reminder terkirim ke " + b.teacher);
+      };
+
       const totalBaik = inventory.reduce((sum, item) => sum + (Number(item.qtyBaik) || 0), 0);
       const totalRusakRingan = inventory.reduce((sum, item) => sum + (Number(item.qtyRusakRingan) || 0), 0);
       const totalRusakBerat = inventory.reduce((sum, item) => sum + (Number(item.qtyRusakBerat) || 0), 0);
@@ -315,6 +379,7 @@
               {role === 'guru' && (
                 <React.Fragment>
                   <NavItem id="pengajuan" icon="calendar-plus" label="Ajukan Pemakaian" />
+                  <NavItem id="riwayat-pengajuan" icon="history" label="Riwayat Pengajuan" />
                   <NavItem id="isi-jurnal" icon="pen-square" label="Isi Jurnal Lab" />
                 </React.Fragment>
               )}
@@ -356,10 +421,55 @@
 
             <div className="flex-1 overflow-auto p-4 sm:p-6">
               
+              {/* === BANNER REMINDER (GURU) === */}
+              {role === 'guru' && overdueGuru.length > 0 && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                  <div className="flex items-start">
+                    <i className="fas fa-exclamation-triangle text-red-500 mt-0.5 mr-3"></i>
+                    <div>
+                      <h3 className="text-sm font-bold text-red-800">Peringatan: Jurnal Belum Diisi!</h3>
+                      <div className="mt-1 text-sm text-red-700">
+                        Ada {overdueGuru.length} jadwal pemakaian lab yang sudah lewat 1x24 jam namun belum Anda isi jurnalnya:
+                        <ul className="list-disc pl-5 mt-1">
+                          {overdueGuru.map(ob => <li key={ob.id}><strong>{ob.subject}</strong> ({ob.date})</li>)}
+                        </ul>
+                        <button onClick={() => setActiveTab('isi-jurnal')} className="mt-2 text-red-600 font-bold hover:underline inline-block">Klik di sini untuk mengisi jurnal sekarang</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* === BANNER REMINDER (LABORAN/KEPALA LAB) === */}
+              {(role === 'laboran' || role === 'kepala_lab') && overdueBookingsAll.length > 0 && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-lg shadow-sm">
+                  <div className="flex items-start">
+                    <i className="fas fa-clock text-amber-500 mt-0.5 mr-3"></i>
+                    <div className="w-full">
+                      <h3 className="text-sm font-bold text-amber-800">Pemantauan Jurnal Menunggak</h3>
+                      <div className="mt-1 text-sm text-amber-700">
+                        Terdapat {overdueBookingsAll.length} jadwal yang sudah lewat 1x24 jam namun gurunya belum mengisi jurnal:
+                        <div className="mt-2 space-y-2">
+                          {overdueBookingsAll.map(ob => (
+                            <div key={ob.id} className="flex justify-between items-center bg-white/60 p-2 rounded border border-amber-200">
+                              <span><strong>{ob.teacher}</strong> - {ob.subject} ({ob.date})</span>
+                              {role === 'laboran' && (
+                                <button onClick={() => handleSendReminderWA(ob)} className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded hover:bg-green-600 transition-colors">
+                                  <i className="fab fa-whatsapp mr-1"></i> Tagih WA
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* === DASHBOARD === */}
               {activeTab === 'dashboard' && (
                 <div className="space-y-6">
-                  {/* Statistik Inventaris Khusus Laboran & Kepala Lab */}
                   {(role === 'laboran' || role === 'kepala_lab') && (
                     <div className="bg-gradient-to-r from-blue-700 to-blue-900 rounded-xl p-6 text-white shadow-md flex justify-between items-center mb-6">
                       <div>
@@ -441,7 +551,6 @@
               {/* === INVENTARIS LAB === */}
               {activeTab === 'inventaris' && (role === 'laboran' || role === 'kepala_lab') && (
                 <div className="space-y-6">
-                  {/* Form Tambah Kelompok Barang (Hanya Laboran) */}
                   {role === 'laboran' && (
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-6">
                       <h3 className="font-semibold text-lg text-slate-800 mb-4 border-b pb-3"><i className="fas fa-plus-circle text-blue-500 mr-2"></i>Tambah Data Peralatan (Per Kelompok/Model)</h3>
@@ -487,7 +596,6 @@
                     </div>
                   )}
 
-                  {/* Tabel Daftar Inventaris Berkelompok */}
                   <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                       <h3 className="font-semibold text-lg"><i className="fas fa-boxes text-slate-500 mr-2"></i>Rekapitulasi Peralatan Lab</h3>
@@ -592,15 +700,24 @@
                 </div>
               )}
 
-              {/* === PENGAJUAN & ISI JURNAL === */}
+              {/* === PENGAJUAN (GURU) === */}
               {activeTab === 'pengajuan' && role === 'guru' && (
                 <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-blue-50"><h3 className="font-semibold text-lg text-blue-800">Form Pengajuan Pemakaian Lab</h3></div>
+                  <div className="p-5 border-b border-slate-200 bg-blue-50 flex justify-between items-center">
+                    <h3 className="font-semibold text-lg text-blue-800">
+                      {editingBookingId ? 'Edit & Ajukan Ulang Jadwal' : 'Form Pengajuan Pemakaian Lab'}
+                    </h3>
+                    {editingBookingId && (
+                      <button onClick={cancelEditBooking} className="text-sm bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-md transition-colors">
+                        Batal Edit
+                      </button>
+                    )}
+                  </div>
                   <form onSubmit={submitBooking} className="p-6 space-y-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">Nama Lengkap Anda</label>
-                      <input type="text" required placeholder="Gunakan nama asli (contoh: Abdullah, S.Pd)" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" value={newBooking.teacherName} onChange={e => setNewBooking({...newBooking, teacherName: e.target.value})} />
-                      <p className="text-xs text-slate-500 mt-1">*Ubah nama ini ke nama asli Anda jika akun Google Anda menggunakan nama anonim/samaran.</p>
+                      <input type="text" required placeholder="Gunakan nama asli (Ex: Budi Santoso, S.Kom)" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" value={newBooking.teacherName} onChange={e => setNewBooking({...newBooking, teacherName: e.target.value})} />
+                      <p className="text-xs text-slate-500 mt-1">*Ubah nama ini ke nama asli Anda jika akun Google Anda menggunakan nama samaran.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div><label className="block text-sm font-medium mb-1">Tanggal</label><input type="date" required className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} /></div>
@@ -609,17 +726,70 @@
                         <div className="flex-1"><label className="block text-sm font-medium mb-1">Selesai</label><input type="time" required className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} /></div>
                       </div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">Mapel / Kegiatan</label><input type="text" required placeholder="contoh: Matematika" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} /></div>
+                    <div><label className="block text-sm font-medium mb-1">Mapel / Kegiatan</label><input type="text" required placeholder="Ex: Matematika" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} /></div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="contoh: XII" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
+                      <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="Ex: XI" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
                       <div><label className="block text-sm font-medium mb-1">Jml PC</label><input type="number" required placeholder="Ex: 36" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} /></div>
                     </div>
                     <div><label className="block text-sm font-medium mb-1">No. WA Anda</label><input type="text" placeholder="Untuk konfirmasi ACC" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} /></div>
-                    <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4 hover:bg-blue-700 transition-colors shadow-sm">Kirim Pengajuan</button>
+                    <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4 hover:bg-blue-700 transition-colors shadow-sm">
+                      {editingBookingId ? 'Simpan Perubahan & Ajukan' : 'Kirim Pengajuan'}
+                    </button>
                   </form>
                 </div>
               )}
 
+              {/* === FITUR BARU: RIWAYAT PENGAJUAN (GURU) === */}
+              {activeTab === 'riwayat-pengajuan' && role === 'guru' && (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b bg-slate-50">
+                    <h3 className="font-semibold text-lg text-slate-800"><i className="fas fa-history text-blue-500 mr-2"></i>Riwayat Pengajuan Saya</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
+                      <thead><tr className="bg-slate-50 text-slate-500 text-sm border-b"><th className="p-4">Tgl & Waktu</th><th className="p-4">Mapel / Kelas</th><th className="p-4">Status</th><th className="p-4 text-right">Aksi</th></tr></thead>
+                      <tbody>
+                        {bookings.filter(b => b.teacherEmail === user.email).map(booking => (
+                          <tr key={booking.id} className="border-b hover:bg-slate-50">
+                            <td className="p-4"><div className="font-medium text-slate-800">{booking.date}</div><div className="text-xs text-slate-500">{booking.timeStart} - {booking.timeEnd}</div></td>
+                            <td className="p-4">
+                              <div className="font-medium text-slate-800">{booking.subject}</div>
+                              <div className="text-xs text-slate-500">{booking.class} • {booking.pcsNeeded} PC</div>
+                            </td>
+                            <td className="p-4">
+                              {booking.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">Menunggu ACC</span>}
+                              {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Disetujui</span>}
+                              {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Ditolak</span>}
+                              {booking.status === 'cancelled' && <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">Dibatalkan</span>}
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex justify-end space-x-2">
+                                {/* Opsi Jika Ditolak: Edit & Ajukan Ulang */}
+                                {booking.status === 'rejected' && (
+                                  <button onClick={() => handleEditBooking(booking)} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-xs font-bold transition-colors">
+                                    <i className="fas fa-edit mr-1"></i> Edit & Ulang
+                                  </button>
+                                )}
+                                {/* Opsi Jika Masih Pending atau Sudah Disetujui: Batalkan */}
+                                {(booking.status === 'pending' || booking.status === 'approved') && (
+                                  <button onClick={() => handleCancelBooking(booking.id)} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-xs font-bold transition-colors">
+                                    <i className="fas fa-ban mr-1"></i> Batalkan
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {bookings.filter(b => b.teacherEmail === user.email).length === 0 && (
+                          <tr><td colSpan="4" className="p-8 text-center text-slate-500">Anda belum memiliki riwayat pengajuan.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* === ISI JURNAL (GURU) === */}
               {activeTab === 'isi-jurnal' && role === 'guru' && (
                 <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="p-5 border-b border-slate-200 bg-green-50"><h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3></div>
@@ -642,7 +812,7 @@
                 </div>
               )}
 
-              {/* === PERSETUJUAN === */}
+              {/* === PERSETUJUAN (LABORAN) === */}
               {activeTab === 'persetujuan' && role === 'laboran' && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="p-5 border-b bg-slate-50"><h3 className="font-semibold text-lg">Manajemen Pengajuan</h3></div>
@@ -662,12 +832,13 @@
                               {booking.status === 'pending' && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">Menunggu</span>}
                               {booking.status === 'approved' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Disetujui</span>}
                               {booking.status === 'rejected' && <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Ditolak</span>}
+                              {booking.status === 'cancelled' && <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded text-xs font-bold">Dibatalkan Guru</span>}
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex justify-end space-x-2">
-                                {booking.status !== 'approved' && <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 rounded-lg"><i className="fas fa-check"></i></button>}
-                                {booking.status !== 'rejected' && <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 rounded-lg"><i className="fas fa-times"></i></button>}
-                                {booking.status !== 'pending' && <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border text-slate-600 rounded-lg"><i className="fas fa-undo"></i></button>}
+                                {booking.status !== 'approved' && booking.status !== 'cancelled' && <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 rounded-lg"><i className="fas fa-check"></i></button>}
+                                {booking.status !== 'rejected' && booking.status !== 'cancelled' && <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 rounded-lg"><i className="fas fa-times"></i></button>}
+                                {booking.status !== 'pending' && booking.status !== 'cancelled' && <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border text-slate-600 rounded-lg"><i className="fas fa-undo"></i></button>}
                               </div>
                             </td>
                           </tr>
