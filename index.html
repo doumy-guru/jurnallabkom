@@ -80,6 +80,9 @@
 
       const todayStrLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
       const [timelineDate, setTimelineDate] = useState(todayStrLocal);
+      
+      // FITUR BARU: State untuk mengontrol Sidebar Menu di HP
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
       useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
@@ -343,7 +346,7 @@
       const totalAlat = totalBaik + totalRusak;
 
       const NavItem = ({ id, icon, label }) => (
-        <button onClick={() => setActiveTab(id)} className={`flex items-center space-x-3 px-4 py-3 w-full rounded-lg transition-colors text-left ${activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50'}`}>
+        <button onClick={() => { setActiveTab(id); setIsSidebarOpen(false); }} className={`flex items-center space-x-3 px-4 py-3 w-full rounded-lg transition-colors text-left ${activeTab === id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-blue-50'}`}>
           <i className={`fas fa-${icon} w-5 text-center`}></i><span className="font-medium">{label}</span>
         </button>
       );
@@ -367,11 +370,21 @@
 
       return (
         <div className="min-h-screen flex font-sans text-slate-800">
-          {/* SIDEBAR */}
-          <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden md:flex min-h-screen">
-            <div className="p-6 border-b border-slate-200 flex items-center space-x-3">
-              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-12 h-12 object-contain" />
-              <div><h1 className="text-xl font-bold text-slate-800">Jurnal Labkom</h1><p className="text-xs text-slate-500">Sistem Terpadu</p></div>
+          {/* FITUR BARU: Overlay gelap untuk mobile saat sidebar terbuka */}
+          {isSidebarOpen && (
+            <div className="fixed inset-0 bg-slate-800/50 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>
+          )}
+
+          {/* SIDEBAR (Diperbarui agar responsif dan bisa di-slide pada layar HP) */}
+          <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex-col transition-transform duration-300 ease-in-out md:translate-x-0 ${isSidebarOpen ? 'translate-x-0 flex' : '-translate-x-full flex'} min-h-screen`}>
+            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-12 h-12 object-contain" />
+                <div><h1 className="text-xl font-bold text-slate-800">Jurnal Labkom</h1><p className="text-xs text-slate-500">Sistem Terpadu</p></div>
+              </div>
+              <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-slate-500 hover:text-slate-700">
+                <i className="fas fa-times text-xl"></i>
+              </button>
             </div>
             <div className="flex-1 p-4 space-y-2">
               <NavItem id="dashboard" icon="chart-line" label="Dashboard Utama" />
@@ -406,7 +419,13 @@
           {/* MAIN CONTENT */}
           <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+              <div className="flex items-center space-x-3">
+                {/* FITUR BARU: Tombol Hamburger Menu untuk Layar HP */}
+                <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-600 hover:text-blue-600 transition-colors">
+                  <i className="fas fa-bars text-xl"></i>
+                </button>
+                <h2 className="text-xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+              </div>
               
               <div className="flex items-center space-x-4">
                 <div className="hidden sm:block text-right">
