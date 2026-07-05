@@ -154,14 +154,14 @@
         if(role === 'kepala_lab') return; 
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'approved' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Lab Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Labkom untuk kegiatan/mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
       };
 
       const handleReject = async (id) => {
         if(role === 'kepala_lab') return;
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'rejected' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Lab Anda untuk kegiatan/mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
+        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Labkom untuk kegiatan/mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
       };
 
       const handlePending = async (id) => {
