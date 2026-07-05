@@ -197,7 +197,7 @@
               createdAt: firebase.firestore.FieldValue.serverTimestamp() 
             });
             
-            const pesanLaboran = `*Pengajuan Lab Baru!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
+            const pesanLaboran = `*Pengajuan Pemakaian Labkom!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
             sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
             
             alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
