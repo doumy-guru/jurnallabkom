@@ -22,6 +22,9 @@
   
   <!-- Import SheetJS untuk Export Excel -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- Import EmailJS Browser SDK (Pengganti WA) -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body class="bg-slate-50">
 
@@ -47,7 +50,7 @@
     const auth = firebase.auth();
     const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    // --- 2. KONFIGURASI SISTEM & ROLE ADMIN ---
+    // --- 2. KONFIGURASI SISTEM & EMAILJS ---
     const ADMIN_EMAILS = [
       'iwandoumy18@guru.sma.belajar.id'
     ];
@@ -56,8 +59,10 @@
       'doumy@sman1bandaaceh.sch.id'
     ];
 
-    const _sysAuthHash = 'SHh4SlgzQldlMVdoRXR4eGE1QUM='; 
-    const NOMOR_WA_LABORAN = '0895635211817'; 
+    // Konfigurasi EmailJS (Silakan ganti dengan Key EmailJS Anda sendiri jika diperlukan)
+    const EMAILJS_PUBLIC_KEY = "uPvCKbKCtPhkHB0qN"; // Masukkan Public Key EmailJS
+    const EMAILJS_SERVICE_ID = "service_11zu2vd"; // Masukkan Service ID EmailJS
+    const EMAILJS_TEMPLATE_ID = "template_lg2hquj"; // Masukkan Template ID EmailJS
 
     function App() {
       const [user, setUser] = useState(null);
@@ -69,9 +74,9 @@
       const [journals, setJournals] = useState([]);
       const [inventory, setInventory] = useState([]);
 
-      // State Pengajuan & Edit Pengajuan
-      const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: '' });
-      const [editingBookingId, setEditingBookingId] = useState(null); // Penanda sedang edit jadwal
+      // State Pengajuan & Edit Pengajuan (Tanpa WA, menggunakan Email)
+      const [newBooking, setNewBooking] = useState({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherName: '' });
+      const [editingBookingId, setEditingBookingId] = useState(null); 
       
       const [newJournal, setNewJournal] = useState({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
       const [newItem, setNewItem] = useState({ kode: '', nama: '', kategori: 'PC', qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
@@ -81,7 +86,6 @@
       const todayStrLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
       const [timelineDate, setTimelineDate] = useState(todayStrLocal);
       
-      // FITUR BARU: State untuk mengontrol Sidebar Menu di HP
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
       useEffect(() => {
@@ -95,7 +99,6 @@
             } else {
               setRole('guru');
             }
-            // Auto-fill nama
             setNewBooking(prev => ({ ...prev, teacherName: currentUser.displayName || '' }));
           } else {
             setUser(null);
@@ -133,16 +136,22 @@
         };
       }, [user]);
 
-      const sendWhatsApp = async (target, message) => {
+      // --- FUNGSI PENGIRIM EMAIL UNIVERSAL (EMAILJS) ---
+      const sendEmailNotif = async (toEmail, toName, subject, message) => {
+        if (!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY === "YOUR_PUBLIC_KEY") {
+          console.log("EmailJS Belum Dikonfigurasi. Simulasi Kirim Email:", { toEmail, subject, message });
+          return;
+        }
         try {
-          const _parsedKey = atob(_sysAuthHash);
-          if (!_parsedKey || _parsedKey.length < 10) return;
-          const formData = new FormData();
-          formData.append('target', target);
-          formData.append('message', message);
-          await fetch('https://api.fonnte.com/send', { method: 'POST', headers: { 'Authorization': _parsedKey }, body: formData });
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+            to_email: toEmail,
+            to_name: toName || 'Pengguna',
+            subject_title: subject,
+            message_body: message,
+          }, EMAILJS_PUBLIC_KEY);
+          console.log(`Email berhasil dikirim ke ${toEmail}`);
         } catch (error) {
-          console.error(error);
+          console.error("Gagal mengirim email via EmailJS:", error);
         }
       };
 
@@ -154,14 +163,22 @@
         if(role === 'kepala_lab') return; 
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'approved' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Labkom untuk kegiatan/mapel *${b.subject}* pd *${b.date}* telah *DISETUJUI*.`);
+        
+        if (b && b.teacherEmail) {
+          const pesan = `Yth. Bapak/Ibu ${b.teacher},\n\nPengajuan pemakaian Labkom Anda untuk kegiatan/mapel ${b.subject} (Kelas ${b.class}) pada tanggal ${b.date} jam ${b.timeStart} - ${b.timeEnd} telah DISETUJUI.\n\nTerima kasih.`;
+          sendEmailNotif(b.teacherEmail, b.teacher, "Persetujuan Jadwal Labkom", pesan);
+        }
       };
 
       const handleReject = async (id) => {
         if(role === 'kepala_lab') return;
         const b = bookings.find(x => x.id === id);
         await db.collection('bookings').doc(id).update({ status: 'rejected' });
-        if (b && b.teacherWa) sendWhatsApp(b.teacherWa, `*Info Labkom*\nPengajuan pemakaian Labkom untuk kegiatan/mapel *${b.subject}* pd *${b.date}* terpaksa *DITOLAK*.`);
+        
+        if (b && b.teacherEmail) {
+          const pesan = `Yth. Bapak/Ibu ${b.teacher},\n\nMohon maaf, pengajuan pemakaian Labkom Anda untuk kegiatan/mapel ${b.subject} pada tanggal ${b.date} DITOLAK.\n\nSilakan cek portal Jurnal Labkom untuk mengajukan ulang slot waktu lain.`;
+          sendEmailNotif(b.teacherEmail, b.teacher, "Status Pengajuan Labkom: DITOLAK", pesan);
+        }
       };
 
       const handlePending = async (id) => {
@@ -178,11 +195,14 @@
             await db.collection('bookings').doc(editingBookingId).update({
               ...newBooking,
               teacher: newBooking.teacherName || user.displayName || 'Guru',
-              status: 'pending' // Kembalikan ke pending agar diperiksa ulang
+              teacherEmail: user.email,
+              status: 'pending'
             });
             
-            const pesanLaboran = `*Perubahan/Edit Pengajuan Lab!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nTelah diubah & diajukan ulang. Silakan cek web Jurnal Labkom.`;
-            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            const pesanLaboran = `Perubahan/Edit Pengajuan Lab!\n\nGuru: ${newBooking.teacherName || user.displayName} (${user.email})\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nTelah diubah & diajukan ulang. Silakan cek portal Jurnal Labkom.`;
+            ADMIN_EMAILS.forEach(emailLaboran => {
+              sendEmailNotif(emailLaboran, "Laboran", "Perubahan Pengajuan Jadwal Labkom", pesanLaboran);
+            });
             
             alert("Pengajuan berhasil diperbarui dan diajukan ulang!");
             setEditingBookingId(null);
@@ -197,14 +217,16 @@
               createdAt: firebase.firestore.FieldValue.serverTimestamp() 
             });
             
-            const pesanLaboran = `*Pengajuan Pemakaian Labkom!*\n\nGuru: ${newBooking.teacherName || user.displayName}\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek web Jurnal Labkom.`;
-            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            const pesanLaboran = `Pengajuan Pemakaian Labkom Baru!\n\nGuru: ${newBooking.teacherName || user.displayName} (${user.email})\nMapel: ${newBooking.subject}\nKelas: ${newBooking.class}\nTanggal: ${newBooking.date}\nWaktu: ${newBooking.timeStart} - ${newBooking.timeEnd}\n\nSilakan cek portal Jurnal Labkom untuk verifikasi.`;
+            ADMIN_EMAILS.forEach(emailLaboran => {
+              sendEmailNotif(emailLaboran, "Laboran", "Pengajuan Pemakaian Labkom Baru", pesanLaboran);
+            });
             
             alert("Pengajuan berhasil dikirim! Menunggu persetujuan laboran.");
           }
 
-          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: user.displayName || '' });
-          setActiveTab('riwayat-pengajuan'); // Arahkan ke tab riwayat
+          setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherName: user.displayName || '' });
+          setActiveTab('riwayat-pengajuan');
         } catch (error) {
           alert("Gagal memproses pengajuan.");
         }
@@ -219,15 +241,14 @@
           timeEnd: b.timeEnd,
           class: b.class,
           pcsNeeded: b.pcsNeeded,
-          teacherWa: b.teacherWa || '',
           teacherName: b.teacherName || b.teacher || user.displayName || ''
         });
-        setActiveTab('pengajuan'); // Pindah ke form pengajuan
+        setActiveTab('pengajuan');
       };
 
       const cancelEditBooking = () => {
         setEditingBookingId(null);
-        setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherWa: '', teacherName: user.displayName || '' });
+        setNewBooking({ subject: '', date: '', timeStart: '', timeEnd: '', class: '', pcsNeeded: '', teacherName: user.displayName || '' });
         setActiveTab('riwayat-pengajuan');
       };
 
@@ -237,8 +258,10 @@
             await db.collection('bookings').doc(id).update({ status: 'cancelled' });
             
             const b = bookings.find(x => x.id === id);
-            const pesanLaboran = `*PEMBATALAN JADWAL LAB*\n\nJadwal atas nama ${b.teacher} untuk mapel ${b.subject} pada tanggal ${b.date} telah DIBATALKAN oleh guru yang bersangkutan.`;
-            sendWhatsApp(NOMOR_WA_LABORAN, pesanLaboran);
+            const pesanLaboran = `PEMBATALAN JADWAL LAB\n\nJadwal atas nama ${b.teacher} (${b.teacherEmail}) untuk mapel ${b.subject} pada tanggal ${b.date} telah DIBATALKAN oleh guru yang bersangkutan.`;
+            ADMIN_EMAILS.forEach(emailLaboran => {
+              sendEmailNotif(emailLaboran, "Laboran", "Pembatalan Jadwal Labkom", pesanLaboran);
+            });
             
             alert("Jadwal berhasil dibatalkan.");
           } catch (error) {
@@ -255,7 +278,13 @@
       const submitJournal = async (e) => {
         e.preventDefault();
         const b = bookings.find(x => x.id === newJournal.bookingId);
-        await db.collection('journals').add({ ...newJournal, date: new Date().toISOString().split('T')[0], teacher: user.displayName || 'Guru', subject: b.subject, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await db.collection('journals').add({ 
+          ...newJournal, 
+          date: new Date().toISOString().split('T')[0], 
+          teacher: user.displayName || 'Guru', 
+          subject: b ? b.subject : 'Umum', 
+          createdAt: firebase.firestore.FieldValue.serverTimestamp() 
+        });
         setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
         setActiveTab('laporan');
         alert("Jurnal disimpan!");
@@ -316,27 +345,27 @@
       // --- HELPER TIMELINE & DASHBOARD ---
       const timeToMins = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
       
-      // Filter Booking untuk Timeline (Jangan tampilkan yang Rejected dan Cancelled)
       const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected' && b.status !== 'cancelled');
 
-      // FITUR BARU: Logika Overdue (Lewat 1x24 jam belum isi jurnal)
+      // Logika Overdue (Lewat 1x24 jam belum isi jurnal)
       const overdueBookingsAll = bookings.filter(b => {
         if (b.status !== 'approved') return false;
         const hasJournal = journals.some(j => j.bookingId === b.id);
         if (hasJournal) return false;
         
-        const endDateTime = new Date(`${b.date}T${b.timeEnd}`);
+        const endDateTime = new Date(`${b.date}T${b.timeEnd || '17:00'}`);
         const now = new Date();
         const diffHours = (now - endDateTime) / (1000 * 60 * 60);
         return diffHours >= 24;
       });
       const overdueGuru = overdueBookingsAll.filter(b => b.teacherEmail === user?.email);
 
-      const handleSendReminderWA = (b) => {
-        if(!b.teacherWa) { alert("Guru ini tidak mencantumkan nomor WA saat pengajuan."); return; }
-        const pesan = `*REMINDER JURNAL LABKOM*\n\nYth. Bapak/Ibu ${b.teacher},\nMohon segera mengisi jurnal pemakaian lab untuk mata pelajaran *${b.subject}* kelas *${b.class}* (Tanggal ${b.date}).\n\nWaktu pemakaian sudah lewat dari 1x24 Jam.\n\nTerima kasih.`;
-        sendWhatsApp(b.teacherWa, pesan);
-        alert("Pesan reminder terkirim ke " + b.teacher);
+      // --- PENGINGAT / TAGIHAN EMAIL 1x24 JAM ---
+      const handleSendReminderEmail = (b) => {
+        if(!b.teacherEmail) { alert("Email guru tidak ditemukan!"); return; }
+        const pesan = `Yth. Bapak/Ibu ${b.teacher},\n\nPengingat Pengisian Jurnal Labkom:\nJadwal pemakaian Labkom Anda untuk mata pelajaran ${b.subject} kelas ${b.class} (Tanggal ${b.date}) telah berlalu lebih dari 1x24 Jam.\n\nMohon kesediaannya untuk segera mengisi jurnal melalui aplikasi Jurnal Labkom.\n\nTerima kasih.`;
+        sendEmailNotif(b.teacherEmail, b.teacher, "Pengingat: Pengisian Jurnal Labkom (1x24 Jam)", pesan);
+        alert("Email pengingat berhasil dikirim ke: " + b.teacherEmail);
       };
 
       const totalBaik = inventory.reduce((sum, item) => sum + (Number(item.qtyBaik) || 0), 0);
@@ -370,12 +399,12 @@
 
       return (
         <div className="min-h-screen flex font-sans text-slate-800">
-          {/* FITUR BARU: Overlay gelap untuk mobile saat sidebar terbuka */}
+          {/* Overlay mobile */}
           {isSidebarOpen && (
             <div className="fixed inset-0 bg-slate-800/50 z-40 md:hidden" onClick={() => setIsSidebarOpen(false)}></div>
           )}
 
-          {/* SIDEBAR (Diperbarui agar responsif dan bisa di-slide pada layar HP) */}
+          {/* SIDEBAR */}
           <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex-col transition-transform duration-300 ease-in-out md:translate-x-0 ${isSidebarOpen ? 'translate-x-0 flex' : '-translate-x-full flex'} min-h-screen`}>
             <div className="p-6 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center space-x-3">
@@ -420,7 +449,6 @@
           <main className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-50">
             <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
               <div className="flex items-center space-x-3">
-                {/* FITUR BARU: Tombol Hamburger Menu untuk Layar HP */}
                 <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-600 hover:text-blue-600 transition-colors">
                   <i className="fas fa-bars text-xl"></i>
                 </button>
@@ -465,16 +493,17 @@
                   <div className="flex items-start">
                     <i className="fas fa-clock text-amber-500 mt-0.5 mr-3"></i>
                     <div className="w-full">
-                      <h3 className="text-sm font-bold text-amber-800">Pemantauan Jurnal Menunggak</h3>
+                      <h3 className="text-sm font-bold text-amber-800">Pemantauan Jurnal Menunggak (1x24 Jam)</h3>
                       <div className="mt-1 text-sm text-amber-700">
                         Terdapat {overdueBookingsAll.length} jadwal yang sudah lewat 1x24 jam namun gurunya belum mengisi jurnal:
                         <div className="mt-2 space-y-2">
                           {overdueBookingsAll.map(ob => (
                             <div key={ob.id} className="flex justify-between items-center bg-white/60 p-2 rounded border border-amber-200">
-                              <span><strong>{ob.teacher}</strong> - {ob.subject} ({ob.date})</span>
+                              <span><strong>{ob.teacher}</strong> ({ob.teacherEmail}) - {ob.subject} ({ob.date})</span>
                               {role === 'laboran' && (
-                                <button onClick={() => handleSendReminderWA(ob)} className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded hover:bg-green-600 transition-colors">
-                                  <i className="fab fa-whatsapp mr-1"></i> Tagih WA
+                                <button onClick={() => handleSendReminderEmail(ob)} className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors shadow-sm flex items-center space-x-1">
+                                  <i className="fas fa-envelope mr-1"></i>
+                                  <span>Tagih Email</span>
                                 </button>
                               )}
                             </div>
@@ -750,7 +779,13 @@
                       <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="Ex: XI" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
                       <div><label className="block text-sm font-medium mb-1">Jml PC</label><input type="number" required placeholder="Ex: 36" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} /></div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">No. WA Anda</label><input type="text" placeholder="Untuk konfirmasi ACC" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.teacherWa} onChange={e => setNewBooking({...newBooking, teacherWa: e.target.value})} /></div>
+                    
+                    {/* INFO EMAIL otomatis */}
+                    <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700 flex items-center">
+                      <i className="fas fa-info-circle text-base mr-2"></i>
+                      <span>Notifikasi status pengajuan akan dikirim otomatis ke email Anda: <strong>{user.email}</strong></span>
+                    </div>
+
                     <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4 hover:bg-blue-700 transition-colors shadow-sm">
                       {editingBookingId ? 'Simpan Perubahan & Ajukan' : 'Kirim Pengajuan'}
                     </button>
@@ -758,7 +793,7 @@
                 </div>
               )}
 
-              {/* === FITUR BARU: RIWAYAT PENGAJUAN (GURU) === */}
+              {/* === RIWAYAT PENGAJUAN (GURU) === */}
               {activeTab === 'riwayat-pengajuan' && role === 'guru' && (
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="p-5 border-b bg-slate-50">
@@ -783,13 +818,11 @@
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex justify-end space-x-2">
-                                {/* Opsi Jika Ditolak: Edit & Ajukan Ulang */}
                                 {booking.status === 'rejected' && (
                                   <button onClick={() => handleEditBooking(booking)} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-xs font-bold transition-colors">
                                     <i className="fas fa-edit mr-1"></i> Edit & Ulang
                                   </button>
                                 )}
-                                {/* Opsi Jika Masih Pending atau Sudah Disetujui: Batalkan */}
                                 {(booking.status === 'pending' || booking.status === 'approved') && (
                                   <button onClick={() => handleCancelBooking(booking.id)} className="px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-xs font-bold transition-colors">
                                     <i className="fas fa-ban mr-1"></i> Batalkan
@@ -855,9 +888,9 @@
                             </td>
                             <td className="p-4 text-right">
                               <div className="flex justify-end space-x-2">
-                                {booking.status !== 'approved' && booking.status !== 'cancelled' && <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 rounded-lg"><i className="fas fa-check"></i></button>}
-                                {booking.status !== 'rejected' && booking.status !== 'cancelled' && <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 rounded-lg"><i className="fas fa-times"></i></button>}
-                                {booking.status !== 'pending' && booking.status !== 'cancelled' && <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border text-slate-600 rounded-lg"><i className="fas fa-undo"></i></button>}
+                                {booking.status !== 'approved' && booking.status !== 'cancelled' && <button onClick={() => handleApprove(booking.id)} className="p-2 bg-green-50 text-green-600 rounded-lg" title="Setujui"><i className="fas fa-check"></i></button>}
+                                {booking.status !== 'rejected' && booking.status !== 'cancelled' && <button onClick={() => handleReject(booking.id)} className="p-2 bg-red-50 text-red-600 rounded-lg" title="Tolak"><i className="fas fa-times"></i></button>}
+                                {booking.status !== 'pending' && booking.status !== 'cancelled' && <button onClick={() => handlePending(booking.id)} className="p-2 bg-slate-50 border text-slate-600 rounded-lg" title="Kembalikan ke Pending"><i className="fas fa-undo"></i></button>}
                               </div>
                             </td>
                           </tr>
