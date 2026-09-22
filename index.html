@@ -95,6 +95,27 @@
       
       const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+      // Helper konversi waktu jam:menit ke menit
+      const timeToMins = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+
+      // Logika Ketersediaan Jadwal & Deteksi Bentrok untuk Form Pengajuan
+      const existingBookingsOnDate = bookings
+        .filter(b => b.date === newBooking.date && b.status !== 'rejected' && b.status !== 'cancelled' && b.id !== editingBookingId)
+        .sort((a, b) => timeToMins(a.timeStart) - timeToMins(b.timeStart));
+
+      const newStartMins = timeToMins(newBooking.timeStart);
+      const newEndMins = timeToMins(newBooking.timeEnd);
+
+      const conflictingBookings = existingBookingsOnDate.filter(b => {
+        if (!newBooking.timeStart || !newBooking.timeEnd) return false;
+        const bStart = timeToMins(b.timeStart);
+        const bEnd = timeToMins(b.timeEnd);
+        return (newStartMins < bEnd && newEndMins > bStart);
+      });
+
+      const hasBookingConflict = conflictingBookings.length > 0;
+      const isBookingTimeInvalid = Boolean(newBooking.timeStart && newBooking.timeEnd && newStartMins >= newEndMins);
+
       useEffect(() => {
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           if (currentUser) {
@@ -196,6 +217,15 @@
       // --- AKSI GURU (PENGAJUAN, EDIT, BATAL) ---
       const submitBooking = async (e) => {
         e.preventDefault();
+        if (isBookingTimeInvalid) {
+          alert(`Jam selesai (${newBooking.timeEnd}) harus lebih akhir dari jam mulai (${newBooking.timeStart})!`);
+          return;
+        }
+        if (hasBookingConflict) {
+          const firstConflict = conflictingBookings[0];
+          alert(`Jadwal bentrok dengan: ${firstConflict.teacher} (${firstConflict.timeStart} - ${firstConflict.timeEnd}, ${firstConflict.subject}). Silakan pilih slot waktu lain.`);
+          return;
+        }
         try {
           if (editingBookingId) {
             // Mode Update/Edit Jadwal
@@ -419,8 +449,6 @@
       };
 
       // --- HELPER TIMELINE & DASHBOARD ---
-      const timeToMins = (t) => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-      
       const timelineBookings = bookings.filter(b => b.date === timelineDate && b.status !== 'rejected' && b.status !== 'cancelled');
 
       // Logika Overdue (Lewat 1x24 jam belum isi jurnal)
@@ -1155,17 +1183,102 @@
                       <input type="text" required placeholder="Gunakan nama asli (Ex: Budi Santoso, S.Kom)" className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50" value={newBooking.teacherName} onChange={e => setNewBooking({...newBooking, teacherName: e.target.value})} />
                       <p className="text-xs text-slate-500 mt-1">*Ubah nama ini ke nama asli Anda jika akun Google Anda menggunakan nama samaran.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium mb-1">Tanggal</label><input type="date" required className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} /></div>
-                      <div className="flex space-x-2">
-                        <div className="flex-1"><label className="block text-sm font-medium mb-1">Mulai</label><input type="time" required className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.timeStart} onChange={e => setNewBooking({...newBooking, timeStart: e.target.value})} /></div>
-                        <div className="flex-1"><label className="block text-sm font-medium mb-1">Selesai</label><input type="time" required className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1 flex items-center">
+                          <i className="fas fa-calendar-alt text-blue-500 mr-1.5"></i>Tanggal Pemakaian
+                        </label>
+                        <input type="date" required className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 flex items-center">
+                          <i className="fas fa-clock text-blue-500 mr-1.5"></i>Jam Penggunaan
+                        </label>
+                        <div className="flex space-x-2">
+                          <div className="flex-1">
+                            <input type="time" required title="Jam Mulai" className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.timeStart} onChange={e => setNewBooking({...newBooking, timeStart: e.target.value})} />
+                          </div>
+                          <span className="self-center text-slate-400 font-bold">-</span>
+                          <div className="flex-1">
+                            <input type="time" required title="Jam Selesai" className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.timeEnd} onChange={e => setNewBooking({...newBooking, timeEnd: e.target.value})} />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">Mapel / Kegiatan</label><input type="text" required placeholder="Ex: Matematika" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} /></div>
+
+                    {/* PRATINJAU KETERSEDIAAN JADWAL & STATUS BENTROK */}
+                    {newBooking.date ? (
+                      <div className="space-y-2.5 pt-1">
+                        {existingBookingsOnDate.length === 0 ? (
+                          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center space-x-3">
+                            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                              <i className="fas fa-check-circle text-emerald-600 text-base"></i>
+                            </div>
+                            <div>
+                              <strong className="block text-emerald-950 font-bold">Labkom Kosong & Tersedia Sepenuhnya</strong>
+                              <span className="text-emerald-700">Belum ada pemakaian di tanggal <strong>{newBooking.date}</strong>. Anda bebas memilih slot jam.</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2.5">
+                            <div className="flex justify-between items-center text-slate-700 border-b border-slate-200/70 pb-2">
+                              <span className="font-bold flex items-center">
+                                <i className="fas fa-calendar-check text-blue-600 mr-1.5"></i>
+                                Jadwal Terpakai pada {newBooking.date} ({existingBookingsOnDate.length} slot):
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">Pilih jam di luar sesi ini</span>
+                            </div>
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                              {existingBookingsOnDate.map(b => (
+                                <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-2.5 rounded-lg border border-slate-200 gap-1.5">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-xs border border-blue-100 flex items-center">
+                                      <i className="fas fa-clock text-[10px] mr-1 text-blue-500"></i>
+                                      {b.timeStart} - {b.timeEnd}
+                                    </span>
+                                    <span className="font-semibold text-slate-800">{b.teacher}</span>
+                                    <span className="text-slate-500 text-[11px]">({b.subject} • {b.class})</span>
+                                  </div>
+                                  <span className={`self-start sm:self-auto px-2 py-0.5 rounded text-[10px] font-bold ${b.status === 'approved' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                                    {b.status === 'approved' ? 'Disetujui' : 'Menunggu ACC'}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Peringatan Jam Invalid */}
+                        {isBookingTimeInvalid && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center space-x-2.5">
+                            <i className="fas fa-clock text-amber-600 text-base flex-shrink-0"></i>
+                            <span>Jam selesai ({newBooking.timeEnd}) harus lebih akhir dari jam mulai ({newBooking.timeStart}).</span>
+                          </div>
+                        )}
+
+                        {/* Peringatan Bentrok Jadwal */}
+                        {hasBookingConflict && (
+                          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start space-x-3">
+                            <i className="fas fa-exclamation-triangle text-rose-600 text-lg mt-0.5 flex-shrink-0"></i>
+                            <div>
+                              <strong className="block text-rose-950 font-bold mb-0.5">Peringatan: Jadwal Bentrok / Bertabrakan!</strong>
+                              <span className="leading-relaxed">
+                                Slot waktu yang Anda pilih ({newBooking.timeStart} - {newBooking.timeEnd}) bertabrakan dengan jadwal <strong>{conflictingBookings[0].teacher}</strong> ({conflictingBookings[0].timeStart} - {conflictingBookings[0].timeEnd}, Mapel {conflictingBookings[0].subject}). Silakan ganti jam mulai/selesai.
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        <i className="fas fa-info-circle mr-1"></i>Pilih tanggal di atas untuk melihat ketersediaan jam lab komputer.
+                      </p>
+                    )}
+
+                    <div><label className="block text-sm font-medium mb-1">Mapel / Kegiatan</label><input type="text" required placeholder="Ex: Matematika" className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.subject} onChange={e => setNewBooking({...newBooking, subject: e.target.value})} /></div>
                     <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="Ex: XI" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
-                      <div><label className="block text-sm font-medium mb-1">Jml PC</label><input type="number" required placeholder="Ex: 36" className="w-full p-2.5 border rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500" value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} /></div>
+                      <div><label className="block text-sm font-medium mb-1">Kelas</label><input type="text" required placeholder="Ex: XI" className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.class} onChange={e => setNewBooking({...newBooking, class: e.target.value})} /></div>
+                      <div><label className="block text-sm font-medium mb-1">Jml PC</label><input type="number" required placeholder="Ex: 36" className="w-full p-2.5 border border-slate-300 rounded-lg bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={newBooking.pcsNeeded} onChange={e => setNewBooking({...newBooking, pcsNeeded: e.target.value})} /></div>
                     </div>
                     
                     {/* INFO EMAIL otomatis */}
@@ -1174,8 +1287,17 @@
                       <span>Notifikasi status pengajuan akan dikirim otomatis ke email Anda: <strong>{user.email}</strong></span>
                     </div>
 
-                    <button type="submit" className="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl mt-4 hover:bg-blue-700 transition-colors shadow-sm">
-                      {editingBookingId ? 'Simpan Perubahan & Ajukan' : 'Kirim Pengajuan'}
+                    <button 
+                      type="submit" 
+                      disabled={hasBookingConflict || isBookingTimeInvalid}
+                      className={`w-full font-semibold py-3 rounded-xl mt-4 transition-colors shadow-sm flex items-center justify-center space-x-2 ${
+                        hasBookingConflict || isBookingTimeInvalid 
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed' 
+                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                      }`}
+                    >
+                      <i className={`fas ${editingBookingId ? 'fa-save' : 'fa-paper-plane'}`}></i>
+                      <span>{editingBookingId ? 'Simpan Perubahan & Ajukan' : 'Kirim Pengajuan'}</span>
                     </button>
                   </form>
                 </div>
