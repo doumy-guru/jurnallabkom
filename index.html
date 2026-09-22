@@ -83,6 +83,13 @@
       const [editItemId, setEditItemId] = useState(null);
       const [editItemData, setEditItemData] = useState({ qtyBaik: 0, qtyRusakRingan: 0, qtyRusakBerat: 0 });
 
+      // State Filter & Tampilan Jurnal
+      const [filterTeacher, setFilterTeacher] = useState('');
+      const [filterStartDate, setFilterStartDate] = useState('');
+      const [filterEndDate, setFilterEndDate] = useState('');
+      const [filterKeyword, setFilterKeyword] = useState('');
+      const [journalViewMode, setJournalViewMode] = useState('auto'); // 'auto', 'table', 'card'
+
       const todayStrLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
       const [timelineDate, setTimelineDate] = useState(todayStrLocal);
       
@@ -322,15 +329,53 @@
         }
       };
 
+      // --- FILTER & PENCARIAN DATA JURNAL ---
+      const uniqueTeachers = Array.from(new Set(journals.map(j => j.teacher).filter(Boolean)));
+
+      const filteredJournals = journals.filter(j => {
+        if (filterTeacher.trim() !== '') {
+          const matchTeacher = (j.teacher || '').toLowerCase().includes(filterTeacher.toLowerCase().trim());
+          if (!matchTeacher) return false;
+        }
+        if (filterStartDate) {
+          if ((j.date || '') < filterStartDate) return false;
+        }
+        if (filterEndDate) {
+          if ((j.date || '') > filterEndDate) return false;
+        }
+        if (filterKeyword.trim() !== '') {
+          const kw = filterKeyword.toLowerCase().trim();
+          const matchKw = (j.subject || '').toLowerCase().includes(kw) ||
+                          (j.materi || '').toLowerCase().includes(kw) ||
+                          (j.summary || '').toLowerCase().includes(kw) ||
+                          (j.issues || '').toLowerCase().includes(kw);
+          if (!matchKw) return false;
+        }
+        return true;
+      });
+
+      const resetJournalFilter = () => {
+        setFilterTeacher('');
+        setFilterStartDate('');
+        setFilterEndDate('');
+        setFilterKeyword('');
+      };
+
+      const isFilterActive = Boolean(filterTeacher.trim() || filterStartDate || filterEndDate || filterKeyword.trim());
+
+      // --- FITUR EKSPOR DATA (EXCEL & CSV) ---
       const exportToExcel = () => {
-        if(journals.length === 0) { alert("Belum ada data jurnal untuk diexport!"); return; }
-        const dataToExport = journals.map((j, index) => ({
+        if (filteredJournals.length === 0) { 
+          alert("Tidak ada data jurnal untuk diexport!"); 
+          return; 
+        }
+        const dataToExport = filteredJournals.map((j, index) => ({
           'No': index + 1,
           'Tanggal': j.date,
           'Nama Guru': j.teacher,
           'Mata Pelajaran': j.subject,
           'Materi/Tema': j.materi || '-',
-          'Perangkat Lab': j.devices ? j.devices.join(', ') : '-',
+          'Perangkat Lab': j.devices ? (Array.isArray(j.devices) ? j.devices.join(', ') : j.devices) : '-',
           'Jml Kehadiran': j.attendees,
           'Ringkasan Kegiatan': j.summary,
           'Kendala Dilaporkan': j.issues || 'Aman'
@@ -340,6 +385,37 @@
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data Jurnal");
         worksheet['!cols'] = [{wch: 5}, {wch: 12}, {wch: 25}, {wch: 20}, {wch: 30}, {wch: 25}, {wch: 15}, {wch: 40}, {wch: 30}];
         XLSX.writeFile(workbook, `Laporan_Labkom_${new Date().toISOString().split('T')[0]}.xlsx`);
+      };
+
+      const exportToCSV = () => {
+        if (filteredJournals.length === 0) { 
+          alert("Tidak ada data jurnal untuk diexport!"); 
+          return; 
+        }
+        const dataToExport = filteredJournals.map((j, index) => ({
+          'No': index + 1,
+          'Tanggal': j.date,
+          'Nama Guru': j.teacher,
+          'Mata Pelajaran': j.subject,
+          'Materi/Tema': j.materi || '-',
+          'Perangkat Lab': j.devices ? (Array.isArray(j.devices) ? j.devices.join(', ') : j.devices) : '-',
+          'Jml Kehadiran': j.attendees,
+          'Ringkasan Kegiatan': j.summary,
+          'Kendala Dilaporkan': j.issues || 'Aman'
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+
+        // Menggunakan UTF-8 BOM (\uFEFF) agar simbol dan huruf terbaca sempurna di Excel
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Laporan_Labkom_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       };
 
       // --- HELPER TIMELINE & DASHBOARD ---
@@ -423,6 +499,7 @@
                   <NavItem id="pengajuan" icon="calendar-plus" label="Ajukan Pemakaian" />
                   <NavItem id="riwayat-pengajuan" icon="history" label="Riwayat Pengajuan" />
                   <NavItem id="isi-jurnal" icon="pen-square" label="Isi Jurnal Lab" />
+                  <NavItem id="laporan" icon="file-alt" label="Laporan Jurnal" />
                 </React.Fragment>
               )}
               
@@ -430,7 +507,7 @@
                 <React.Fragment>
                   {role === 'laboran' && <NavItem id="persetujuan" icon="check-double" label="Persetujuan Jadwal" />}
                   <NavItem id="inventaris" icon="boxes" label="Inventaris Lab" />
-                  <NavItem id="laporan" icon="file-excel" label="Laporan Jurnal" />
+                  <NavItem id="laporan" icon="file-alt" label="Laporan Jurnal" />
                 </React.Fragment>
               )}
             </div>
@@ -715,36 +792,347 @@
 
               {/* === LAPORAN JURNAL === */}
               {activeTab === 'laporan' && (
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-4">
-                    <h3 className="font-semibold text-lg text-slate-800"><i className="fas fa-file-alt text-blue-500 mr-2"></i>Riwayat & Rekap Jurnal</h3>
-                    {(role === 'laboran' || role === 'kepala_lab') && (
-                      <button onClick={exportToExcel} className="mt-3 sm:mt-0 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-colors flex items-center shadow-sm">
-                        <i className="fas fa-file-excel mr-2"></i> Export ke Excel
+                <div className="space-y-5">
+                  {/* HEADER & TOMBOL EKSPOR */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-5 rounded-xl border border-slate-200 shadow-sm gap-4">
+                    <div>
+                      <h3 className="font-bold text-lg text-slate-800 flex items-center">
+                        <i className="fas fa-book-open text-blue-600 mr-2.5"></i>Riwayat & Rekap Jurnal Lab
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">Rekapitulasi aktivitas pembelajaran dan pemantauan perangkat lab komputer</p>
+                    </div>
+                    
+                    <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                      <button 
+                        onClick={exportToExcel} 
+                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center space-x-2 shadow-sm"
+                        title="Unduh data jurnal ke Microsoft Excel (.xlsx)"
+                      >
+                        <i className="fas fa-file-excel text-base"></i>
+                        <span>Export Excel</span>
                       </button>
-                    )}
+                      
+                      <button 
+                        onClick={exportToCSV} 
+                        className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-bold rounded-lg transition-colors flex items-center justify-center space-x-2 shadow-sm"
+                        title="Unduh data jurnal ke format CSV (.csv)"
+                      >
+                        <i className="fas fa-file-csv text-base"></i>
+                        <span>Export CSV</span>
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 gap-4">
-                    {journals.map(journal => (
-                      <div key={journal.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="font-bold text-lg text-blue-700">{journal.subject}</h4>
-                            <p className="text-sm text-slate-500 flex items-center mt-1"><i className="fas fa-user mr-1.5"></i> {journal.teacher} <span className="mx-2">|</span> <i className="fas fa-calendar-alt mr-1.5"></i> {journal.date}</p>
-                          </div>
-                          <span className="bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-sm font-bold border border-slate-200">{journal.attendees} Hadir</span>
-                        </div>
-                        <div className="bg-slate-50 rounded-lg p-3.5 text-sm text-slate-700 mb-3 border border-slate-200">
-                          <div className="mb-2.5 flex items-start"><span className="font-bold w-28 flex-shrink-0">Materi/Tema</span><span>: {journal.materi || '-'}</span></div>
-                          <div className="mb-2.5 flex items-start"><span className="font-bold w-28 flex-shrink-0">Perangkat</span><div className="flex-1"><span>:</span> {journal.devices?.map(d => <span key={d} className="inline-block bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold mr-1">{d}</span>)}</div></div>
-                          <div className="flex items-start"><span className="font-bold w-28 flex-shrink-0">Ringkasan</span><span>: {journal.summary}</span></div>
-                        </div>
-                        {journal.issues && <div className="bg-red-50 text-red-800 rounded-lg p-3 text-sm border border-red-200 flex"><i className="fas fa-exclamation-triangle mr-2 mt-0.5 text-red-600"></i><div><span className="font-bold block mb-0.5 text-red-900">Kendala:</span>{journal.issues}</div></div>}
+
+                  {/* PANEL FILTER & PENCARIAN */}
+                  <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center space-x-2">
+                        <i className="fas fa-filter text-blue-500 text-sm"></i>
+                        <span className="text-sm font-bold text-slate-700">Filter & Pencarian Jurnal</span>
                       </div>
-                    ))}
-                    {journals.length === 0 && <div className="p-8 text-center text-slate-500 bg-white rounded-xl border border-slate-200">Belum ada jurnal disubmit.</div>}
+                      {isFilterActive && (
+                        <button 
+                          onClick={resetJournalFilter} 
+                          className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center space-x-1 px-2.5 py-1 rounded bg-rose-50 border border-rose-200 hover:bg-rose-100 transition-colors"
+                        >
+                          <i className="fas fa-undo text-[10px]"></i>
+                          <span>Reset Filter</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                      {/* Filter Guru */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          <i className="fas fa-user-tie text-slate-400 mr-1"></i>Nama Guru
+                        </label>
+                        <div className="relative">
+                          <input 
+                            list="teacherFilterList" 
+                            type="text" 
+                            placeholder="Cari atau pilih nama guru..." 
+                            value={filterTeacher} 
+                            onChange={e => setFilterTeacher(e.target.value)} 
+                            className="w-full pl-3 pr-8 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                          />
+                          {filterTeacher && (
+                            <button onClick={() => setFilterTeacher('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                              <i className="fas fa-times-circle"></i>
+                            </button>
+                          )}
+                        </div>
+                        <datalist id="teacherFilterList">
+                          {uniqueTeachers.map(t => <option key={t} value={t} />)}
+                        </datalist>
+                      </div>
+
+                      {/* Filter Tanggal Mulai */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          <i className="fas fa-calendar-alt text-slate-400 mr-1"></i>Dari Tanggal
+                        </label>
+                        <input 
+                          type="date" 
+                          value={filterStartDate} 
+                          onChange={e => setFilterStartDate(e.target.value)} 
+                          className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                        />
+                      </div>
+
+                      {/* Filter Tanggal Akhir */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          <i className="fas fa-calendar-check text-slate-400 mr-1"></i>Sampai Tanggal
+                        </label>
+                        <input 
+                          type="date" 
+                          value={filterEndDate} 
+                          onChange={e => setFilterEndDate(e.target.value)} 
+                          className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                        />
+                      </div>
+
+                      {/* Kata Kunci Mapel / Materi */}
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                          <i className="fas fa-search text-slate-400 mr-1"></i>Kata Kunci (Mapel/Materi)
+                        </label>
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            placeholder="Ketik mapel, topik, kendala..." 
+                            value={filterKeyword} 
+                            onChange={e => setFilterKeyword(e.target.value)} 
+                            className="w-full pl-3 pr-8 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+                          />
+                          {filterKeyword && (
+                            <button onClick={() => setFilterKeyword('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs">
+                              <i className="fas fa-times-circle"></i>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* BAR STATUS FILTER & TOGGLE TAMPILAN */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-2 gap-2 text-xs text-slate-500 border-t border-slate-100">
+                      <div className="flex items-center flex-wrap gap-2">
+                        <span>
+                          Menampilkan <strong className="text-slate-800 font-bold">{filteredJournals.length}</strong> dari {journals.length} jurnal
+                        </span>
+                        {isFilterActive && (
+                          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold text-[11px] inline-flex items-center">
+                            <i className="fas fa-check text-[10px] mr-1"></i>Filter Aktif
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Toggle Mode Tampilan (Auto, Tabel, Kartu) */}
+                      <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 self-end sm:self-auto">
+                        <span className="text-[11px] font-semibold text-slate-500 mr-1.5 ml-1 hidden sm:inline">Tampilan:</span>
+                        <button 
+                          onClick={() => setJournalViewMode('auto')} 
+                          className={`px-2.5 py-1 rounded text-xs font-bold transition-colors ${journalViewMode === 'auto' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                          title="Tabel di layar besar, Kartu di ponsel"
+                        >
+                          <i className="fas fa-mobile-alt mr-1"></i>Auto
+                        </button>
+                        <button 
+                          onClick={() => setJournalViewMode('table')} 
+                          className={`px-2.5 py-1 rounded text-xs font-bold transition-colors ${journalViewMode === 'table' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                          title="Tampilkan selalu dalam bentuk tabel"
+                        >
+                          <i className="fas fa-table mr-1"></i>Tabel
+                        </button>
+                        <button 
+                          onClick={() => setJournalViewMode('card')} 
+                          className={`px-2.5 py-1 rounded text-xs font-bold transition-colors ${journalViewMode === 'card' ? 'bg-white text-blue-600 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                          title="Tampilkan selalu dalam bentuk kartu"
+                        >
+                          <i className="fas fa-th-large mr-1"></i>Kartu
+                        </button>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* KONTEN DATA: TABEL (DESKTOP) ATAU KARTU (MOBILE) */}
+                  {filteredJournals.length > 0 ? (
+                    <React.Fragment>
+                      {/* === MODE TABEL MODERN (DESKTOP RESPONSIVE) === */}
+                      <div className={`overflow-x-auto bg-white rounded-xl border border-slate-200 shadow-sm ${journalViewMode === 'auto' ? 'hidden md:block' : (journalViewMode === 'table' ? 'block' : 'hidden')}`}>
+                        <table className="w-full text-left border-collapse min-w-[900px]">
+                          <thead>
+                            <tr className="bg-slate-100/80 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                              <th className="p-4 w-12 text-center">No</th>
+                              <th className="p-4 w-32">Tanggal</th>
+                              <th className="p-4 w-48">Guru & Mapel</th>
+                              <th className="p-4">Materi & Ringkasan</th>
+                              <th className="p-4 w-44">Perangkat</th>
+                              <th className="p-4 w-28 text-center">Hadir</th>
+                              <th className="p-4 w-48">Kendala / Catatan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-sm">
+                            {filteredJournals.map((j, idx) => (
+                              <tr key={j.id} className="hover:bg-blue-50/40 transition-colors">
+                                <td className="p-4 text-center font-bold text-slate-400 text-xs">{idx + 1}</td>
+                                <td className="p-4">
+                                  <div className="font-bold text-slate-800 flex items-center">
+                                    <i className="fas fa-calendar-day text-blue-500 text-xs mr-1.5"></i>
+                                    {j.date}
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-bold text-slate-800 flex items-center">
+                                    <i className="fas fa-user-circle text-slate-400 mr-1.5"></i>
+                                    {j.teacher}
+                                  </div>
+                                  <div className="mt-1">
+                                    <span className="inline-block bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-semibold">
+                                      {j.subject}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="font-bold text-slate-800 mb-1">
+                                    {j.materi || '-'}
+                                  </div>
+                                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-2" title={j.summary}>
+                                    {j.summary}
+                                  </p>
+                                </td>
+                                <td className="p-4">
+                                  {j.devices && j.devices.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {j.devices.map(d => (
+                                        <span key={d} className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[11px] font-semibold border border-slate-200">
+                                          {d}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">-</span>
+                                  )}
+                                </td>
+                                <td className="p-4 text-center">
+                                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold border border-blue-100 inline-flex items-center">
+                                    <i className="fas fa-users text-[10px] mr-1"></i>
+                                    {j.attendees}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  {j.issues ? (
+                                    <div className="bg-rose-50 text-rose-800 rounded-lg p-2 text-xs border border-rose-200 flex items-start">
+                                      <i className="fas fa-exclamation-triangle text-rose-500 mr-1.5 mt-0.5 flex-shrink-0"></i>
+                                      <span className="line-clamp-2" title={j.issues}>{j.issues}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full text-xs font-semibold border border-emerald-200 inline-flex items-center">
+                                      <i className="fas fa-check-circle text-emerald-500 mr-1"></i>Aman
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* === MODE KARTU RESPONSIF (KHUSUS PONSEL / MOBILE) === */}
+                      <div className={`space-y-3.5 ${journalViewMode === 'auto' ? 'block md:hidden' : (journalViewMode === 'card' ? 'block' : 'hidden')}`}>
+                        {filteredJournals.map(journal => (
+                          <div key={journal.id} className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200 shadow-sm space-y-3 hover:border-blue-300 transition-colors">
+                            {/* Baris Header Kartu */}
+                            <div className="flex justify-between items-start gap-2 border-b border-slate-100 pb-2.5">
+                              <div>
+                                <span className="inline-block bg-blue-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md mb-1">
+                                  {journal.subject}
+                                </span>
+                                <div className="text-sm font-bold text-slate-800 flex items-center mt-0.5">
+                                  <i className="fas fa-chalkboard-teacher text-slate-400 mr-1.5"></i>
+                                  {journal.teacher}
+                                </div>
+                              </div>
+                              <div className="text-right flex flex-col items-end">
+                                <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-full font-bold border border-slate-200 flex items-center">
+                                  <i className="fas fa-calendar-alt text-slate-400 mr-1"></i>
+                                  {journal.date}
+                                </span>
+                                <span className="mt-1 bg-blue-50 text-blue-700 text-[11px] font-bold px-2 py-0.5 rounded border border-blue-100 inline-flex items-center">
+                                  <i className="fas fa-users mr-1"></i>{journal.attendees} Siswa
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Detail Materi & Ringkasan */}
+                            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-700 space-y-2 border border-slate-150">
+                              <div>
+                                <span className="font-bold text-slate-800 block mb-0.5">Materi / Tema:</span>
+                                <p className="text-slate-600 font-medium">{journal.materi || '-'}</p>
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800 block mb-0.5">Perangkat Digunakan:</span>
+                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                  {journal.devices && journal.devices.length > 0 ? (
+                                    journal.devices.map(d => (
+                                      <span key={d} className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                        {d}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-800 block mb-0.5">Ringkasan Kegiatan:</span>
+                                <p className="text-slate-600 leading-relaxed">{journal.summary}</p>
+                              </div>
+                            </div>
+
+                            {/* Kendala / Status Perangkat */}
+                            {journal.issues ? (
+                              <div className="bg-rose-50 text-rose-800 rounded-lg p-3 text-xs border border-rose-200 flex items-start">
+                                <i className="fas fa-exclamation-triangle mr-2 mt-0.5 text-rose-600 flex-shrink-0"></i>
+                                <div>
+                                  <span className="font-bold block text-rose-900 mb-0.5">Kendala Perangkat:</span>
+                                  <p className="leading-relaxed">{journal.issues}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-emerald-600 font-medium flex items-center pt-0.5">
+                                <i className="fas fa-check-circle mr-1.5 text-emerald-500"></i>
+                                <span>Perangkat berfungsi baik & normal</span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </React.Fragment>
+                  ) : (
+                    /* EMPTY STATE */
+                    <div className="bg-white p-8 sm:p-12 rounded-xl border border-slate-200 shadow-sm text-center">
+                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3.5 text-slate-400 text-2xl">
+                        <i className="fas fa-folder-open"></i>
+                      </div>
+                      <h4 className="font-bold text-slate-700 text-base mb-1.5">Tidak Ada Data Jurnal</h4>
+                      <p className="text-sm text-slate-500 max-w-md mx-auto mb-4 leading-relaxed">
+                        {isFilterActive 
+                          ? "Tidak ditemukan jurnal yang cocok dengan filter tanggal, nama guru, atau kata kunci yang Anda masukkan." 
+                          : "Belum ada catatan jurnal pemakaian laboratorium komputer yang tersimpan di sistem."}
+                      </p>
+                      {isFilterActive && (
+                        <button 
+                          onClick={resetJournalFilter} 
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm inline-flex items-center space-x-1.5"
+                        >
+                          <i className="fas fa-undo"></i>
+                          <span>Reset Semua Filter</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
