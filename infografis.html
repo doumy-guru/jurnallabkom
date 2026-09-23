@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Infografis Panduan Jurnal Labkom - Khusus Guru</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; padding: 0 !important; }
+      .print-shadow-none { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans p-4 sm:p-8 min-h-screen flex flex-col items-center justify-center">
+
+  <!-- Tombol Aksi Cetak & Navigasi -->
+  <div class="no-print w-full max-w-4xl mb-6 flex justify-between items-center gap-3">
+    <a href="index.html" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 font-bold rounded-xl border border-slate-300 shadow-sm hover:bg-slate-50 transition-colors text-sm">
+      <i class="fas fa-arrow-left"></i>
+      <span>Kembali ke Aplikasi</span>
+    </a>
+    <button onclick="window.print()" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors text-sm">
+      <i class="fas fa-print"></i>
+      <span>Cetak / Simpan PDF</span>
+    </button>
+  </div>
+
+  <!-- KARTU UTAMA INFOGRAFIS -->
+  <div class="w-full max-w-4xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 print-shadow-none">
+    
+    <!-- HEADER INFOGRAFIS -->
+    <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 text-white p-6 sm:p-8 relative overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl">
+        <i class="fas fa-laptop-code"></i>
+      </div>
+      <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center space-x-2 bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2 border border-blue-400/30">
+            <i class="fas fa-graduation-cap"></i>
+            <span>Panduan Praktis Guru</span>
+          </div>
+          <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight">ALUR PENGGUNAAN JURNAL LABKOM</h1>
+          <p class="text-blue-100 text-sm sm:text-base mt-1 max-w-xl">
+            Sistem Digital Penjadwalan, Pelaksanaan KBM, dan Pelaporan Fasilitas Laboratorium Komputer
+          </p>
+        </div>
+        <div class="bg-white/10 p-3 rounded-2xl backdrop-blur-sm border border-white/20 text-center flex-shrink-0">
+          <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-blue-700 text-2xl mx-auto shadow-md">
+            <i class="fas fa-desktop"></i>
+          </div>
+          <span class="text-[11px] font-bold tracking-wider text-blue-200 block mt-1.5 uppercase">Labkom Terpadu</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6 LANGKAH UTAMA (GRID / FLOW) -->
+    <div class="p-6 sm:p-8 space-y-6">
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+
+        <!-- LANGKAH 1 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-blue-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            1
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Masuk dengan Google</span>
+              <i class="fab fa-google text-rose-500 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Buka aplikasi di browser, lalu klik <strong>"Masuk dengan Google"</strong> menggunakan akun sekolah atau akun Google aktif Anda. Sistem otomatis mengenali peran Anda sebagai <strong>Guru</strong>.
+            </p>
+          </div>
+        </div>
+
+        <!-- LANGKAH 2 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            2
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Cek Kalender Bulanan</span>
+              <i class="fas fa-calendar-alt text-indigo-500 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Di Dashboard, periksa tanggal yang Anda inginkan:
+            </p>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">🟢 Hijau = Disetujui</span>
+              <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">🟡 Kuning = Menunggu</span>
+              <span class="text-[10px] font-bold bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">⚪ Putih = Kosong</span>
+            </div>
+            <p class="text-[11px] text-blue-600 font-semibold mt-1.5">
+              *Klik tanggal untuk melihat rincian jam pemakaian.
+            </p>
+          </div>
+        </div>
+
+        <!-- LANGKAH 3 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            3
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Ajukan Pemakaian Lab</span>
+              <i class="fas fa-shield-alt text-emerald-500 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Masuk ke menu <strong>"Ajukan Pemakaian"</strong>. Tentukan tanggal, jam mulai & selesai, mapel, kelas, dan jumlah PC.
+            </p>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 mt-2 text-[11px] text-emerald-900 font-semibold">
+              <i class="fas fa-magic mr-1 text-emerald-600"></i><strong>Fitur Anti-Bentrok:</strong> Jika jam bertabrakan dengan guru lain, sistem langsung memberi peringatan & mengunci pengajuan.
+            </div>
+          </div>
+        </div>
+
+        <!-- LANGKAH 4 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            4
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Tinjau Persetujuan (ACC)</span>
+              <i class="fas fa-check-double text-amber-500 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Pantau status pengajuan Anda di menu <strong>"Riwayat Pengajuan"</strong>:
+            </p>
+            <ul class="text-xs text-slate-700 mt-1.5 space-y-1">
+              <li>• <strong>Disetujui</strong>: Anda siap mengajar di labkom.</li>
+              <li>• <strong>Menunggu ACC</strong>: Menunggu verifikasi laboran.</li>
+              <li>• <strong>Ditolak</strong>: Klik <em>"Edit & Ulang"</em> untuk pilih jam lain.</li>
+              <li>• Notifikasi otomatis masuk ke email Anda.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- LANGKAH 5 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-rose-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            5
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Wajib Isi Jurnal Lab</span>
+              <i class="fas fa-pen-nib text-rose-500 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Selesai mengajar, buka menu <strong>"Isi Jurnal Lab"</strong>. Catat materi, jumlah siswa, centang perangkat (PC/Proyektor), dan ringkasan KBM.
+            </p>
+            <div class="bg-rose-50 border border-rose-200 rounded-lg p-2 mt-2 text-[11px] text-rose-900 font-semibold">
+              <i class="fas fa-exclamation-triangle mr-1 text-rose-600"></i><strong>Lapor Kendala:</strong> Tulis nomor PC/alat rusak (misal: <em>PC-10 mouse macet</em>) agar segera diperbaiki Laboran.
+            </div>
+          </div>
+        </div>
+
+        <!-- LANGKAH 6 -->
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-teal-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+            6
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-slate-800 flex items-center">
+              <span>Cari Arsip & Ekspor</span>
+              <i class="fas fa-file-excel text-teal-600 ml-2 text-sm"></i>
+            </h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+              Di menu <strong>"Laporan Jurnal"</strong>, Anda dapat mencari arsip jurnal berdasarkan guru, tanggal, atau kata kunci.
+            </p>
+            <div class="flex items-center space-x-2 mt-2">
+              <span class="text-[11px] font-bold bg-emerald-600 text-white px-2 py-1 rounded-md shadow-xs"><i class="fas fa-file-excel mr-1"></i>Excel (.xlsx)</span>
+              <span class="text-[11px] font-bold bg-teal-600 text-white px-2 py-1 rounded-md shadow-xs"><i class="fas fa-file-csv mr-1"></i>CSV (.csv)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- KARTU PERINGATAN 1x24 JAM -->
+      <div class="bg-amber-50 rounded-2xl p-4 sm:p-5 border border-amber-300 flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 text-xl shadow-md">
+          <i class="fas fa-bell"></i>
+        </div>
+        <div>
+          <h4 class="font-bold text-amber-900 text-sm">Aturan Disiplin Jurnal (Batas Waktu 1x24 Jam)</h4>
+          <p class="text-xs text-amber-800 mt-0.5 leading-relaxed">
+            Jika jadwal yang disetujui telah berlalu lebih dari <strong>24 jam</strong> namun belum dibuat jurnalnya, banner peringatan merah akan muncul di akun Anda dan laboran dapat mengirimkan email penagihan. Mohon segera melengkapi jurnal demi kelancaran administrasi lab.
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FOOTER INFOGRAFIS -->
+    <div class="bg-slate-50 border-t border-slate-200 p-4 sm:p-6 text-center text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+      <div>
+        <strong>Jurnal Labkom SMAN 1 Banda Aceh</strong> • Sistem Digitalisasi Laboratorium Komputer
+      </div>
+      <div class="font-semibold text-blue-600">
+        Akses: doumy-guru.github.io/jurnallabkom
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
