@@ -358,14 +358,15 @@
         const b = bookings.find(x => x.id === newJournal.bookingId);
         await db.collection('journals').add({ 
           ...newJournal, 
-          date: new Date().toISOString().split('T')[0], 
+          date: b ? b.date : new Date().toISOString().split('T')[0], 
           teacher: user.displayName || 'Guru', 
           subject: b ? b.subject : 'Umum', 
+          class: b ? b.class : '',
           createdAt: firebase.firestore.FieldValue.serverTimestamp() 
         });
         setNewJournal({ bookingId: '', attendees: '', issues: '', summary: '', materi: '', devices: [] });
         setActiveTab('laporan');
-        alert("Jurnal disimpan!");
+        alert("Jurnal pemakaian lab berhasil disimpan!");
       };
 
       // --- INVENTARIS ---
@@ -505,6 +506,14 @@
       });
       const overdueGuru = overdueBookingsAll.filter(b => b.teacherEmail === user?.email);
 
+      // Jadwal disetujui milik guru yang belum diisi jurnalnya
+      const unjournaledApprovedBookings = bookings.filter(b => {
+        if (b.status !== 'approved') return false;
+        if (b.teacherEmail !== user?.email) return false;
+        const hasJournal = journals.some(j => j.bookingId === b.id);
+        return !hasJournal;
+      });
+
       // --- PENGINGAT / TAGIHAN EMAIL 1x24 JAM ---
       const handleSendReminderEmail = (b) => {
         if(!b.teacherEmail) { alert("Email guru tidak ditemukan!"); return; }
@@ -552,11 +561,6 @@
                         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
                         <span>Masuk dengan Google</span>
                       </button>
-
-                      <a href="infografis.html" target="_blank" rel="noopener noreferrer" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-sm transition-all text-sm">
-                        <i className="fas fa-file-pdf text-red-300"></i>
-                        <span>Cetak PDF Lanskap & QR Code</span>
-                      </a>
                     </div>
 
                     <div className="mt-6 p-3 bg-white/80 rounded-xl border border-blue-100 text-xs text-slate-500 space-y-1">
@@ -1768,23 +1772,78 @@
               {/* === ISI JURNAL (GURU) === */}
               {activeTab === 'isi-jurnal' && role === 'guru' && (
                 <div className="max-w-2xl mx-auto bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="p-5 border-b border-slate-200 bg-green-50"><h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3></div>
-                  <form onSubmit={submitJournal} className="p-6 space-y-4">
-                    <div><label className="block text-sm font-medium mb-1">Jadwal Anda (Disetujui)</label><select required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.bookingId} onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}><option value="">-- Pilih Jadwal --</option>{bookings.filter(b => b.status === 'approved' && b.teacherEmail === user.email).map(b => (<option key={b.id} value={b.id}>{b.date} | {b.subject}</option>))}</select></div>
-                    <div><label className="block text-sm font-medium mb-1">Materi / Tema</label><input type="text" required placeholder="Materi diajarkan..." className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} /></div>
+                  <div className="p-5 border-b border-slate-200 bg-green-50 flex items-center justify-between">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Perangkat Digunakan</label>
-                      <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border">
-                        {['PC', 'Proyektor', 'Smartboard', 'Laptop'].map(dev => (
-                          <label key={dev} className="flex items-center space-x-2"><input type="checkbox" checked={newJournal.devices.includes(dev)} onChange={() => handleDeviceChange(dev)} /><span>{dev}</span></label>
-                        ))}
-                      </div>
+                      <h3 className="font-semibold text-lg text-green-800">Form Jurnal Pemakaian Lab</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">Catat pelaksanaan KBM setelah selesai menggunakan fasilitas laboratorium.</p>
                     </div>
-                    <div><label className="block text-sm font-medium mb-1">Jml Siswa Hadir</label><input type="number" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} /></div>
-                    <div><label className="block text-sm font-medium mb-1">Ringkasan Kegiatan</label><textarea required rows="2" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea></div>
-                    <div><label className="block text-sm font-medium mb-1">Kendala Alat (Opsional)</label><textarea rows="2" placeholder="Cth: PC-05 Mouse rusak" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea></div>
-                    <button type="submit" className="w-full bg-green-600 text-white font-semibold py-3 rounded-xl mt-4">Simpan Jurnal</button>
-                  </form>
+                    {unjournaledApprovedBookings.length > 0 && (
+                      <span className="text-xs font-bold px-2.5 py-1 bg-green-100 text-green-700 rounded-full border border-green-200">
+                        {unjournaledApprovedBookings.length} Jadwal Belum Diisi
+                      </span>
+                    )}
+                  </div>
+                  
+                  {unjournaledApprovedBookings.length === 0 ? (
+                    <div className="p-8 sm:p-10 text-center">
+                      <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                        <i className="fas fa-check-circle"></i>
+                      </div>
+                      <h4 className="text-base font-bold text-slate-800 mb-1">Semua Jadwal Telah Diisi Jurnal!</h4>
+                      <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+                        Tidak ada jadwal pemakaian lab yang tertunggak. Seluruh sesi KBM Anda yang telah disetujui sudah selesai dibuatkan laporan jurnalnya.
+                      </p>
+                      <button 
+                        onClick={() => setActiveTab('laporan')} 
+                        className="inline-flex items-center space-x-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition-colors shadow-sm"
+                      >
+                        <i className="fas fa-file-alt"></i>
+                        <span>Buka Rekapan Laporan Jurnal</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={submitJournal} className="p-6 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-sm font-medium text-slate-700">Pilih Jadwal (Hanya yang Belum Diisi)</label>
+                          <span className="text-xs text-green-600 font-semibold">{unjournaledApprovedBookings.length} jadwal tersedia</span>
+                        </div>
+                        <select 
+                          required 
+                          className="w-full p-2.5 border rounded-lg bg-slate-50 text-slate-800 focus:ring-2 focus:ring-green-500 font-medium text-sm" 
+                          value={newJournal.bookingId} 
+                          onChange={e => setNewJournal({...newJournal, bookingId: e.target.value})}
+                        >
+                          <option value="">-- Pilih Jadwal yang Belum Terisi --</option>
+                          {unjournaledApprovedBookings.map(b => (
+                            <option key={b.id} value={b.id}>
+                              {b.date} ({b.timeStart} - {b.timeEnd}) | {b.subject} - Kelas {b.class}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          <i className="fas fa-info-circle text-blue-500 mr-1"></i>
+                          Jadwal yang sudah diisi jurnal otomatis disembunyikan agar memudahkan Anda memilih.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Materi / Tema</label>
+                        <input type="text" required placeholder="Materi diajarkan..." className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.materi} onChange={e => setNewJournal({...newJournal, materi: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Perangkat Digunakan</label>
+                        <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border">
+                          {['PC', 'Proyektor', 'Smartboard', 'Laptop'].map(dev => (
+                            <label key={dev} className="flex items-center space-x-2"><input type="checkbox" checked={newJournal.devices.includes(dev)} onChange={() => handleDeviceChange(dev)} /><span>{dev}</span></label>
+                          ))}
+                        </div>
+                      </div>
+                      <div><label className="block text-sm font-medium mb-1">Jml Siswa Hadir</label><input type="number" required className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.attendees} onChange={e => setNewJournal({...newJournal, attendees: e.target.value})} /></div>
+                      <div><label className="block text-sm font-medium mb-1">Ringkasan Kegiatan</label><textarea required rows="2" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.summary} onChange={e => setNewJournal({...newJournal, summary: e.target.value})}></textarea></div>
+                      <div><label className="block text-sm font-medium mb-1">Kendala Alat (Opsional)</label><textarea rows="2" placeholder="Cth: PC-05 Mouse rusak" className="w-full p-2.5 border rounded-lg bg-slate-50" value={newJournal.issues} onChange={e => setNewJournal({...newJournal, issues: e.target.value})}></textarea></div>
+                      <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl mt-4 shadow-sm transition-colors">Simpan Jurnal</button>
+                    </form>
+                  )}
                 </div>
               )}
 
