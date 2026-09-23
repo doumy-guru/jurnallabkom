@@ -529,14 +529,158 @@
 
       if (!user) {
         return (
-          <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4 font-sans">
-            <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-slate-200">
-              <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-24 h-24 mx-auto mb-4 object-contain" />
-              <h1 className="text-2xl font-bold text-slate-800 mb-2">Jurnal Labkom Login</h1>
-              <p className="text-slate-500 mb-8 text-sm">Sistem Jurnal & Penjadwalan Lab Komputer.</p>
-              <button onClick={loginGoogle} className="w-full bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl flex items-center justify-center space-x-3 shadow-sm">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" /><span>Masuk dengan Google</span>
-              </button>
+          <div className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-8 flex items-center justify-center font-sans">
+            <div className="max-w-6xl w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-12">
+                {/* Kolom Kiri: Login Card & CTA */}
+                <div className="lg:col-span-4 p-6 sm:p-8 bg-gradient-to-b from-slate-50 to-blue-50/40 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200">
+                  <div>
+                    <div className="flex items-center space-x-3 mb-6">
+                      <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBxQaozyW8IoT_FkoQcMUtn0vPLJHuTzAwrvuasqhbpQ&s=10" alt="Logo" className="w-14 h-14 object-contain" />
+                      <div>
+                        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Jurnal Labkom</h1>
+                        <span className="inline-block text-[11px] font-bold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md">Portal Guru & Pengelola</span>
+                      </div>
+                    </div>
+
+                    <p className="text-slate-600 text-sm leading-relaxed mb-6">
+                      Sistem terpadu penjadwalan anti-bentrok, pencatatan jurnal pemakaian, dan monitoring inventaris laboratorium komputer.
+                    </p>
+
+                    <div className="space-y-3">
+                      <button onClick={loginGoogle} className="w-full bg-white border border-slate-300 hover:bg-slate-50 hover:border-blue-400 text-slate-700 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center space-x-3 shadow-sm transition-all transform hover:-translate-y-0.5">
+                        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
+                        <span>Masuk dengan Google</span>
+                      </button>
+
+                      <a href="infografis.html" target="_blank" rel="noopener noreferrer" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 shadow-sm transition-all text-sm">
+                        <i className="fas fa-file-pdf text-red-300"></i>
+                        <span>Cetak / Unduh PDF (1 Hal A4)</span>
+                      </a>
+                    </div>
+
+                    <div className="mt-6 p-3 bg-white/80 rounded-xl border border-blue-100 text-xs text-slate-500 space-y-1">
+                      <div className="font-semibold text-slate-700 flex items-center space-x-1.5">
+                        <i className="fas fa-info-circle text-blue-500"></i>
+                        <span>Petunjuk Masuk</span>
+                      </div>
+                      <p>Silakan login menggunakan akun Google Anda untuk mengajukan jadwal atau mengisi jurnal pemakaian lab.</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-4 border-t border-slate-200/80 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span>Laboratorium Komputer</span>
+                    <span>Versi Modern 2026</span>
+                  </div>
+                </div>
+
+                {/* Kolom Kanan: Infografis Panduan Penggunaan Langsung */}
+                <div className="lg:col-span-8 p-6 sm:p-8">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Panduan Praktis</span>
+                        <h2 className="text-xl font-bold text-slate-800">Alur Penggunaan untuk Guru</h2>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Pelajari 6 tahapan mudah sebelum Anda mulai menggunakan fasilitas lab</p>
+                    </div>
+                    <a href="infografis.html" target="_blank" rel="noopener noreferrer" className="inline-flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-800 font-bold self-start sm:self-auto">
+                      <span>Buka Tampilan Penuh</span>
+                      <i className="fas fa-external-link-alt text-[10px]"></i>
+                    </a>
+                  </div>
+
+                  {/* 6 Step Cards Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                    {/* Langkah 1 */}
+                    <div className="bg-slate-50 hover:bg-blue-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">1</span>
+                          <i className="fas fa-sign-in-alt text-blue-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Masuk Sistem</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Login dengan akun Google Anda untuk mengakses menu guru.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-blue-700 bg-blue-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Otentikasi Aman</span>
+                    </div>
+
+                    {/* Langkah 2 */}
+                    <div className="bg-slate-50 hover:bg-indigo-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">2</span>
+                          <i className="fas fa-calendar-alt text-indigo-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Cek Kalender</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Buka kalender bulanan. Klik tanggal berwarna untuk rincian jam terisi.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-indigo-700 bg-indigo-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Interaktif Bulanan</span>
+                    </div>
+
+                    {/* Langkah 3 */}
+                    <div className="bg-slate-50 hover:bg-emerald-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-emerald-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">3</span>
+                          <i className="fas fa-calendar-plus text-emerald-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Ajukan Jadwal</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Pilih tanggal & jam. Sistem memvalidasi anti-bentrok secara real-time.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-emerald-700 bg-emerald-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Sistem Anti-Bentrok</span>
+                    </div>
+
+                    {/* Langkah 4 */}
+                    <div className="bg-slate-50 hover:bg-amber-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-amber-500 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">4</span>
+                          <i className="fas fa-clipboard-check text-amber-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Tinjau Persetujuan</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Pantau status persetujuan dari pengelola lab di menu riwayat.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-amber-800 bg-amber-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Notifikasi Status</span>
+                    </div>
+
+                    {/* Langkah 5 */}
+                    <div className="bg-slate-50 hover:bg-rose-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-rose-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">5</span>
+                          <i className="fas fa-edit text-rose-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Wajib Isi Jurnal</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Setelah sesi lab, catat materi, absensi, dan kondisi inventaris PC.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-rose-700 bg-rose-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Maksimal 1x24 Jam</span>
+                    </div>
+
+                    {/* Langkah 6 */}
+                    <div className="bg-slate-50 hover:bg-teal-50/50 p-3.5 rounded-2xl border border-slate-200 transition-all flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="w-7 h-7 bg-teal-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-xs">6</span>
+                          <i className="fas fa-file-export text-teal-500 text-sm"></i>
+                        </div>
+                        <h3 className="font-bold text-slate-800 text-xs sm:text-sm">Cari & Ekspor</h3>
+                        <p className="text-slate-500 text-[11px] leading-relaxed mt-1">Filter jurnal berdasarkan tanggal/guru dan unduh laporan CSV/Excel.</p>
+                      </div>
+                      <span className="mt-2.5 inline-block text-[10px] text-teal-700 bg-teal-100/70 font-semibold px-2 py-0.5 rounded-md w-fit">Laporan Otomatis</span>
+                    </div>
+                  </div>
+
+                  {/* Banner Peringatan 1x24 Jam */}
+                  <div className="mt-4 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200 flex items-start space-x-3 text-xs text-amber-900">
+                    <i className="fas fa-exclamation-triangle text-amber-600 text-base mt-0.5 shrink-0"></i>
+                    <div className="leading-relaxed">
+                      <span className="font-bold">Ketentuan Laboratorium: </span>
+                      Setiap guru pengguna lab wajib mengisi jurnal dalam waktu maksimal <span className="font-bold underline">1x24 jam</span> setelah pemakaian selesai demi tertib administrasi dan pemeliharaan alat.
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );

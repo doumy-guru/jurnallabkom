@@ -3,180 +3,260 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Infografis Panduan Jurnal Labkom - Khusus Guru</title>
+  <title>Infografis Panduan Jurnal Labkom - Khusus Guru (1 Halaman A4)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm 6mm 10mm;
+    }
     @media print {
       .no-print { display: none !important; }
-      body { background: white !important; padding: 0 !important; }
-      .print-shadow-none { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+      body {
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .infographic-wrapper {
+        box-shadow: none !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 14px !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
+      .print-header {
+        padding: 14px 20px !important;
+      }
+      .print-header-title {
+        font-size: 19px !important;
+        line-height: 1.2 !important;
+      }
+      .print-header-sub {
+        font-size: 10px !important;
+        margin-top: 2px !important;
+      }
+      .print-body {
+        padding: 12px 18px !important;
+        gap: 8px !important;
+      }
+      .print-grid {
+        gap: 8px !important;
+      }
+      .print-step-card {
+        padding: 8px 10px !important;
+        border-radius: 10px !important;
+        border: 1px solid #e2e8f0 !important;
+        background-color: #f8fafc !important;
+      }
+      .print-step-num {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 12px !important;
+        border-radius: 6px !important;
+      }
+      .print-step-title {
+        font-size: 11.5px !important;
+      }
+      .print-step-desc {
+        font-size: 9.5px !important;
+        line-height: 1.3 !important;
+      }
+      .print-step-badge {
+        font-size: 8.5px !important;
+        padding: 2px 6px !important;
+        margin-top: 3px !important;
+      }
+      .print-banner {
+        padding: 7px 12px !important;
+        margin-top: 6px !important;
+        border-radius: 10px !important;
+      }
+      .print-banner-text {
+        font-size: 9.5px !important;
+        line-height: 1.3 !important;
+      }
+      .print-footer {
+        padding: 6px 18px !important;
+        font-size: 9.5px !important;
+      }
     }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans p-4 sm:p-8 min-h-screen flex flex-col items-center justify-center">
+<body class="bg-slate-100 text-slate-800 font-sans p-3 sm:p-6 min-h-screen flex flex-col items-center justify-center">
 
-  <!-- Tombol Aksi Cetak & Navigasi -->
-  <div class="no-print w-full max-w-4xl mb-6 flex justify-between items-center gap-3">
-    <a href="index.html" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 font-bold rounded-xl border border-slate-300 shadow-sm hover:bg-slate-50 transition-colors text-sm">
+  <!-- Tombol Aksi Cetak & Navigasi (Tidak Muncul Saat Cetak) -->
+  <div class="no-print w-full max-w-4xl mb-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+    <a href="index.html" class="inline-flex items-center space-x-2 px-4 py-2 bg-white text-slate-700 font-bold rounded-xl border border-slate-300 shadow-xs hover:bg-slate-50 transition-colors text-xs sm:text-sm">
       <i class="fas fa-arrow-left"></i>
-      <span>Kembali ke Aplikasi</span>
+      <span>Kembali ke Halaman Login</span>
     </a>
-    <button onclick="window.print()" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors text-sm">
-      <i class="fas fa-print"></i>
-      <span>Cetak / Simpan PDF</span>
-    </button>
+    
+    <div class="flex items-center space-x-2">
+      <span class="text-xs text-slate-500 font-medium hidden md:inline">
+        <i class="fas fa-check-circle text-emerald-500 mr-1"></i>Format otomatis pas 1 halaman A4
+      </span>
+      <button onclick="window.print()" class="inline-flex items-center space-x-2 px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors text-xs sm:text-sm">
+        <i class="fas fa-print"></i>
+        <span>Cetak / Simpan PDF (1 Halaman)</span>
+      </button>
+    </div>
   </div>
 
-  <!-- KARTU UTAMA INFOGRAFIS -->
-  <div class="w-full max-w-4xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 print-shadow-none">
+  <!-- KARTU UTAMA INFOGRAFIS (DIOPTIMASI UNTUK 1 HALAMAN CETAK A4) -->
+  <div class="infographic-wrapper w-full max-w-4xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
     
     <!-- HEADER INFOGRAFIS -->
-    <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 text-white p-6 sm:p-8 relative overflow-hidden">
-      <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl">
+    <div class="print-header bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-900 text-white p-5 sm:p-6 relative overflow-hidden">
+      <div class="absolute -right-6 -bottom-6 opacity-10 text-8xl pointer-events-none">
         <i class="fas fa-laptop-code"></i>
       </div>
-      <div class="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="relative z-10 flex items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center space-x-2 bg-blue-500/30 text-blue-200 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2 border border-blue-400/30">
+          <div class="inline-flex items-center space-x-1.5 bg-blue-500/30 text-blue-200 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider mb-1.5 border border-blue-400/30">
             <i class="fas fa-graduation-cap"></i>
             <span>Panduan Praktis Guru</span>
           </div>
-          <h1 class="text-2xl sm:text-4xl font-extrabold tracking-tight">ALUR PENGGUNAAN JURNAL LABKOM</h1>
-          <p class="text-blue-100 text-sm sm:text-base mt-1 max-w-xl">
-            Sistem Digital Penjadwalan, Pelaksanaan KBM, dan Pelaporan Fasilitas Laboratorium Komputer
+          <h1 class="print-header-title text-xl sm:text-3xl font-extrabold tracking-tight">ALUR PENGGUNAAN JURNAL LABKOM</h1>
+          <p class="print-header-sub text-blue-100 text-xs sm:text-sm mt-0.5 max-w-xl">
+            Sistem Digital Penjadwalan, Pelaksanaan KBM, dan Pelaporan Fasilitas Lab Komputer
           </p>
         </div>
-        <div class="bg-white/10 p-3 rounded-2xl backdrop-blur-sm border border-white/20 text-center flex-shrink-0">
-          <div class="w-14 h-14 bg-white rounded-xl flex items-center justify-center text-blue-700 text-2xl mx-auto shadow-md">
+        <div class="bg-white/10 p-2 sm:p-3 rounded-2xl backdrop-blur-sm border border-white/20 text-center flex-shrink-0">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl flex items-center justify-center text-blue-700 text-xl sm:text-2xl mx-auto shadow-md">
             <i class="fas fa-desktop"></i>
           </div>
-          <span class="text-[11px] font-bold tracking-wider text-blue-200 block mt-1.5 uppercase">Labkom Terpadu</span>
+          <span class="text-[9px] sm:text-[10px] font-bold tracking-wider text-blue-200 block mt-1 uppercase">Labkom Terpadu</span>
         </div>
       </div>
     </div>
 
-    <!-- 6 LANGKAH UTAMA (GRID / FLOW) -->
-    <div class="p-6 sm:p-8 space-y-6">
+    <!-- 6 LANGKAH UTAMA (GRID 2 KOLOM) -->
+    <div class="print-body p-4 sm:p-6 space-y-4">
       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div class="print-grid grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
 
         <!-- LANGKAH 1 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-blue-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-600 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             1
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
               <span>Masuk dengan Google</span>
-              <i class="fab fa-google text-rose-500 ml-2 text-sm"></i>
+              <i class="fab fa-google text-rose-500 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Buka aplikasi di browser, lalu klik <strong>"Masuk dengan Google"</strong> menggunakan akun sekolah atau akun Google aktif Anda. Sistem otomatis mengenali peran Anda sebagai <strong>Guru</strong>.
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Buka aplikasi dan klik <strong>"Masuk dengan Google"</strong> menggunakan email sekolah atau akun Google aktif Anda. Sistem otomatis menetapkan hak akses Anda sebagai <strong>Guru</strong>.
             </p>
           </div>
         </div>
 
         <!-- LANGKAH 2 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-600 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             2
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
               <span>Cek Kalender Bulanan</span>
-              <i class="fas fa-calendar-alt text-indigo-500 ml-2 text-sm"></i>
+              <i class="fas fa-calendar-alt text-indigo-500 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Di Dashboard, periksa tanggal yang Anda inginkan:
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Di Dashboard, periksa kalender bulanan:
             </p>
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200">🟢 Hijau = Disetujui</span>
-              <span class="text-[10px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">🟡 Kuning = Menunggu</span>
-              <span class="text-[10px] font-bold bg-white text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">⚪ Putih = Kosong</span>
+            <div class="flex flex-wrap gap-1.5 mt-1">
+              <span class="print-step-badge text-[9.5px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-200">🟢 Hijau: Disetujui</span>
+              <span class="print-step-badge text-[9.5px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200">🟡 Kuning: Menunggu</span>
+              <span class="print-step-badge text-[9.5px] font-bold bg-white text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">⚪ Putih: Kosong</span>
             </div>
-            <p class="text-[11px] text-blue-600 font-semibold mt-1.5">
-              *Klik tanggal untuk melihat rincian jam pemakaian.
+            <p class="text-[10px] text-blue-600 font-semibold mt-1">
+              *Klik tanggal untuk melihat jam pemakaian & guru yang mengisi.
             </p>
           </div>
         </div>
 
         <!-- LANGKAH 3 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-600 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             3
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
               <span>Ajukan Pemakaian Lab</span>
-              <i class="fas fa-shield-alt text-emerald-500 ml-2 text-sm"></i>
+              <i class="fas fa-calendar-plus text-emerald-500 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Masuk ke menu <strong>"Ajukan Pemakaian"</strong>. Tentukan tanggal, jam mulai & selesai, mapel, kelas, dan jumlah PC.
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Buka menu <strong>"Ajukan Pemakaian"</strong>. Pilih tanggal, jam mulai & selesai, mapel, kelas, dan jumlah PC.
             </p>
-            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-2 mt-2 text-[11px] text-emerald-900 font-semibold">
-              <i class="fas fa-magic mr-1 text-emerald-600"></i><strong>Fitur Anti-Bentrok:</strong> Jika jam bertabrakan dengan guru lain, sistem langsung memberi peringatan & mengunci pengajuan.
+            <div class="print-step-badge bg-emerald-50 border border-emerald-200 rounded-lg p-1.5 mt-1 text-[10px] text-emerald-900 font-semibold">
+              <i class="fas fa-shield-alt mr-1 text-emerald-600"></i><strong>Anti-Bentrok:</strong> Jika jam tabrakan, sistem otomatis memperingatkan & mengunci tombol submit.
             </div>
           </div>
         </div>
 
         <!-- LANGKAH 4 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             4
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
-              <span>Tinjau Persetujuan (ACC)</span>
-              <i class="fas fa-check-double text-amber-500 ml-2 text-sm"></i>
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
+              <span>Pantau Status Persetujuan</span>
+              <i class="fas fa-check-double text-amber-500 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Pantau status pengajuan Anda di menu <strong>"Riwayat Pengajuan"</strong>:
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Cek menu <strong>"Riwayat Pengajuan"</strong>:
             </p>
-            <ul class="text-xs text-slate-700 mt-1.5 space-y-1">
-              <li>• <strong>Disetujui</strong>: Anda siap mengajar di labkom.</li>
-              <li>• <strong>Menunggu ACC</strong>: Menunggu verifikasi laboran.</li>
-              <li>• <strong>Ditolak</strong>: Klik <em>"Edit & Ulang"</em> untuk pilih jam lain.</li>
-              <li>• Notifikasi otomatis masuk ke email Anda.</li>
-            </ul>
+            <div class="text-[10px] text-slate-700 mt-1 space-y-0.5">
+              <div>• <strong class="text-emerald-700">Disetujui</strong>: Labkom resmi siap digunakan.</div>
+              <div>• <strong class="text-amber-700">Menunggu ACC</strong>: Menunggu verifikasi laboran.</div>
+              <div>• <strong class="text-rose-700">Ditolak</strong>: Klik <em>"Edit & Ulang"</em> untuk ganti jam.</div>
+              <div class="text-slate-500 italic">*Status otomatis terkirim ke email akun Anda.</div>
+            </div>
           </div>
         </div>
 
         <!-- LANGKAH 5 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-rose-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-600 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             5
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
-              <span>Wajib Isi Jurnal Lab</span>
-              <i class="fas fa-pen-nib text-rose-500 ml-2 text-sm"></i>
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
+              <span>Wajib Isi Jurnal KBM</span>
+              <i class="fas fa-pen-square text-rose-500 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Selesai mengajar, buka menu <strong>"Isi Jurnal Lab"</strong>. Catat materi, jumlah siswa, centang perangkat (PC/Proyektor), dan ringkasan KBM.
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Selesai mengajar, buka menu <strong>"Isi Jurnal Lab"</strong>. Catat materi, jumlah siswa hadir, peranti yang dipakai, dan ringkasan KBM.
             </p>
-            <div class="bg-rose-50 border border-rose-200 rounded-lg p-2 mt-2 text-[11px] text-rose-900 font-semibold">
-              <i class="fas fa-exclamation-triangle mr-1 text-rose-600"></i><strong>Lapor Kendala:</strong> Tulis nomor PC/alat rusak (misal: <em>PC-10 mouse macet</em>) agar segera diperbaiki Laboran.
+            <div class="print-step-badge bg-rose-50 border border-rose-200 rounded-lg p-1.5 mt-1 text-[10px] text-rose-900 font-semibold">
+              <i class="fas fa-tools mr-1 text-rose-600"></i><strong>Lapor Kendala:</strong> Catat nomor PC yang rusak (misal: <em>PC-05 mouse macet</em>) agar segera diperbaiki Laboran.
             </div>
           </div>
         </div>
 
         <!-- LANGKAH 6 -->
-        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-200 hover:border-blue-400 transition-all shadow-sm flex items-start space-x-4">
-          <div class="w-12 h-12 rounded-2xl bg-teal-600 text-white font-extrabold text-lg flex items-center justify-center flex-shrink-0 shadow-md">
+        <div class="print-step-card bg-slate-50 rounded-xl p-3 sm:p-4 border border-slate-200 flex items-start space-x-3">
+          <div class="print-step-num w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-teal-600 text-white font-extrabold text-sm sm:text-base flex items-center justify-center flex-shrink-0 shadow-xs">
             6
           </div>
           <div class="flex-1">
-            <h3 class="font-bold text-base text-slate-800 flex items-center">
-              <span>Cari Arsip & Ekspor</span>
-              <i class="fas fa-file-excel text-teal-600 ml-2 text-sm"></i>
+            <h3 class="print-step-title font-bold text-xs sm:text-sm text-slate-800 flex items-center">
+              <span>Cari Arsip & Ekspor Data</span>
+              <i class="fas fa-file-excel text-teal-600 ml-1.5 text-xs"></i>
             </h3>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">
-              Di menu <strong>"Laporan Jurnal"</strong>, Anda dapat mencari arsip jurnal berdasarkan guru, tanggal, atau kata kunci.
+            <p class="print-step-desc text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+              Di menu <strong>"Laporan Jurnal"</strong>, gunakan filter nama guru, rentang tanggal, atau kata kunci untuk melihat seluruh rekap KBM.
             </p>
-            <div class="flex items-center space-x-2 mt-2">
-              <span class="text-[11px] font-bold bg-emerald-600 text-white px-2 py-1 rounded-md shadow-xs"><i class="fas fa-file-excel mr-1"></i>Excel (.xlsx)</span>
-              <span class="text-[11px] font-bold bg-teal-600 text-white px-2 py-1 rounded-md shadow-xs"><i class="fas fa-file-csv mr-1"></i>CSV (.csv)</span>
+            <div class="flex items-center space-x-2 mt-1.5">
+              <span class="text-[9.5px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded shadow-2xs"><i class="fas fa-file-excel mr-1"></i>Export Excel</span>
+              <span class="text-[9.5px] font-bold bg-teal-600 text-white px-2 py-0.5 rounded shadow-2xs"><i class="fas fa-file-csv mr-1"></i>Export CSV</span>
             </div>
           </div>
         </div>
@@ -184,14 +264,14 @@
       </div>
 
       <!-- KARTU PERINGATAN 1x24 JAM -->
-      <div class="bg-amber-50 rounded-2xl p-4 sm:p-5 border border-amber-300 flex items-center space-x-4">
-        <div class="w-12 h-12 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 text-xl shadow-md">
+      <div class="print-banner bg-amber-50 rounded-xl p-3 sm:p-3.5 border border-amber-300 flex items-center space-x-3">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-500 text-white flex items-center justify-center flex-shrink-0 text-sm shadow-xs">
           <i class="fas fa-bell"></i>
         </div>
-        <div>
-          <h4 class="font-bold text-amber-900 text-sm">Aturan Disiplin Jurnal (Batas Waktu 1x24 Jam)</h4>
-          <p class="text-xs text-amber-800 mt-0.5 leading-relaxed">
-            Jika jadwal yang disetujui telah berlalu lebih dari <strong>24 jam</strong> namun belum dibuat jurnalnya, banner peringatan merah akan muncul di akun Anda dan laboran dapat mengirimkan email penagihan. Mohon segera melengkapi jurnal demi kelancaran administrasi lab.
+        <div class="flex-1">
+          <h4 class="font-bold text-amber-900 text-xs sm:text-sm">Batas Waktu Pengisian Jurnal (Maksimal 1x24 Jam)</h4>
+          <p class="print-banner-text text-[10.5px] text-amber-800 mt-0.5 leading-tight">
+            Jika jadwal disetujui telah lewat 24 jam belum dibuat jurnalnya, muncul banner peringatan merah dan email penagihan dari laboran. Mohon melengkapi jurnal segera demi tertib administrasi lab.
           </p>
         </div>
       </div>
@@ -199,12 +279,12 @@
     </div>
 
     <!-- FOOTER INFOGRAFIS -->
-    <div class="bg-slate-50 border-t border-slate-200 p-4 sm:p-6 text-center text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+    <div class="print-footer bg-slate-50 border-t border-slate-200 p-3 sm:p-4 text-center text-[10px] sm:text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-1.5">
       <div>
-        <strong>Jurnal Labkom SMAN 1 Banda Aceh</strong> • Sistem Digitalisasi Laboratorium Komputer
+        <strong>Jurnal Labkom SMAN 1 Banda Aceh</strong> • Digitalisasi Pelayanan & Administrasi Laboratorium
       </div>
       <div class="font-semibold text-blue-600">
-        Akses: doumy-guru.github.io/jurnallabkom
+        Website: doumy-guru.github.io/jurnallabkom
       </div>
     </div>
 
